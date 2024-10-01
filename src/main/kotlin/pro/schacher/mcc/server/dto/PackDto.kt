@@ -8,7 +8,4 @@ data class PackDto(
     val code: String,
     val position: Int,
     val id: Int,
-    val known: Int,
-    val total: Int,
-    val url: String
 )

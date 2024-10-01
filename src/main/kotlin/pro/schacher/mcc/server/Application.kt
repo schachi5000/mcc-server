@@ -10,21 +10,20 @@ import pro.schacher.mcc.server.datasource.MarvelCDbDataSource
 import pro.schacher.mcc.server.plugins.configureRouting
 
 fun main(args: Array<String>) {
+    println("Starting Server")
     embeddedServer(
         Netty,
         port = 8080
     ) {
-        install(ContentNegotiation) {
-            json(Json {
-                prettyPrint = true
-                isLenient = true
-                explicitNulls = false
-            })
-        }
         module()
     }.start(wait = true)
 }
 
 fun Application.module() {
+    install(ContentNegotiation) {
+        json(Json {
+            prettyPrint = true
+        })
+    }
     configureRouting(MarvelCDbDataSource())
 }

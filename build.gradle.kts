@@ -28,6 +28,7 @@ dependencies {
     implementation("io.ktor:ktor-server-netty-jvm")
     implementation("io.ktor:ktor-server-config-yaml")
     implementation("io.ktor:ktor-server-content-negotiation")
+    implementation("io.ktor:ktor-server-call-logging")
 
     implementation("io.ktor:ktor-client-core-jvm")
     implementation("io.ktor:ktor-client-cio")
@@ -35,7 +36,21 @@ dependencies {
     implementation("io.ktor:ktor-client-logging")
 
     implementation("io.ktor:ktor-serialization-kotlinx-json")
+    implementation("io.ktor:ktor-serialization-gson")
 
     testImplementation("io.ktor:ktor-server-test-host-jvm")
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit:$kotlin_version")
+}
+
+java {
+    toolchain {
+        languageVersion.set(JavaLanguageVersion.of(11))
+    }
+}
+
+ktor {
+    docker {
+        localImageName.set("mcc-server")
+        imageTag.set("alpha")
+    }
 }

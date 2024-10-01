@@ -5,17 +5,21 @@ import io.ktor.server.application.*
 import io.ktor.server.engine.*
 import io.ktor.server.netty.*
 import io.ktor.server.plugins.contentnegotiation.*
+import kotlinx.serialization.json.Json
 import pro.schacher.mcc.server.datasource.MarvelCDbDataSource
 import pro.schacher.mcc.server.plugins.configureRouting
 
 fun main(args: Array<String>) {
     embeddedServer(
         Netty,
-        port = 8080,
-        host = "127.0.0.1",
+        port = 8080
     ) {
         install(ContentNegotiation) {
-            json()
+            json(Json {
+                prettyPrint = true
+                isLenient = true
+                explicitNulls = false
+            })
         }
         module()
     }.start(wait = true)

@@ -22,3 +22,30 @@ jobs:
         with:
           distribution: 'corretto'
           java-version: '11'
+      # Step 2: Set up AWS credentials for the job
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      # Step 3: Log in to Amazon ECR
+      - name: Log in to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      # Step 4: Build the Docker image
+      - name: Build the Docker image
+        run: |
+          docker build --platform linux/amd64 -t schacherpro/mcc-server .
+
+      # Step 5: Tag the image with the ECR repository URI
+      - name: Tag Docker image for ECR
+        run: |
+          docker tag schacherpro/mcc-server:latest ${{ secrets.AWS_ECR_REPOSITORY }}/schacherpro/mcc-server:latest
+
+      # Step 6: Push the Docker image to ECR
+      - name: Push Docker image to ECR
+        run: |
+          docker push ${{ secrets.AWS_ECR_REPOSITORY }}/schacherpro/mcc-server:latest

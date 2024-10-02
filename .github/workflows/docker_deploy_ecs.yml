@@ -5,7 +5,6 @@ on:
   push:
     branches:
       - release
-      - main
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -39,10 +38,6 @@ jobs:
       - name: Build Distribution
         run: |
           ./gradlew installDist
-
-      - name: Build the Docker image
-        run: |
-          docker build --platform linux/amd64 -t schacherpro/mcc-server .
 
       # Step 4: Build the Docker image
       - name: Build the Docker image

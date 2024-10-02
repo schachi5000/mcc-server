@@ -4,7 +4,7 @@ import io.ktor.http.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import pro.schacher.mcc.server.datasource.MarvelCDbDataSource
-import pro.schacher.mcc.server.dto.ErrorResponse
+import pro.schacher.mcc.server.dto.ErrorResponseDto
 
 private val imageCache = mutableMapOf<String, ByteArray>()
 
@@ -14,7 +14,7 @@ internal fun Routing.cards(marvelCDbDataSource: MarvelCDbDataSource) {
     get("$PREFIX/{cardCode}") {
         val cardCode = call.pathParameters["cardCode"]
         if (cardCode == null) {
-            call.respond(HttpStatusCode.BadRequest, ErrorResponse("No card code"))
+            call.respond(HttpStatusCode.BadRequest, ErrorResponseDto("No card code"))
             return@get
         }
 
@@ -25,7 +25,7 @@ internal fun Routing.cards(marvelCDbDataSource: MarvelCDbDataSource) {
     get("$PREFIX/image/{cardCode}") {
         val cardCode = call.pathParameters["cardCode"]
         if (cardCode == null) {
-            call.respond(HttpStatusCode.BadRequest, ErrorResponse("No card code"))
+            call.respond(HttpStatusCode.BadRequest, ErrorResponseDto("No card code"))
             return@get
         }
 
@@ -38,7 +38,7 @@ internal fun Routing.cards(marvelCDbDataSource: MarvelCDbDataSource) {
         val result = marvelCDbDataSource.getCardImage(cardCode)
         if (result.isFailure) {
             val throwable = result.exceptionOrNull()!!
-            call.respond(HttpStatusCode.InternalServerError, ErrorResponse(throwable.message.toString()))
+            call.respond(HttpStatusCode.InternalServerError, ErrorResponseDto(throwable.message.toString()))
             return@get
         }
 

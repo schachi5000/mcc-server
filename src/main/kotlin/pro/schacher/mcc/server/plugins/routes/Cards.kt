@@ -14,7 +14,10 @@ internal fun Routing.cards(marvelCDbDataSource: MarvelCDbDataSource) {
     get("$PREFIX/{cardCode}") {
         val cardCode = call.pathParameters["cardCode"]
         if (cardCode == null) {
-            call.respond(HttpStatusCode.BadRequest, ErrorResponseDto("No card code"))
+            call.respond(
+                HttpStatusCode.BadRequest,
+                ErrorResponseDto(HttpStatusCode.BadRequest, "No card code")
+            )
             return@get
         }
 
@@ -22,10 +25,13 @@ internal fun Routing.cards(marvelCDbDataSource: MarvelCDbDataSource) {
         call.respond(card)
     }
 
-    get("$PREFIX/image/{cardCode}") {
+    get("$PREFIX/{cardCode}/image") {
         val cardCode = call.pathParameters["cardCode"]
         if (cardCode == null) {
-            call.respond(HttpStatusCode.BadRequest, ErrorResponseDto("No card code"))
+            call.respond(
+                HttpStatusCode.BadRequest,
+                ErrorResponseDto(HttpStatusCode.BadRequest, "No card code")
+            )
             return@get
         }
 
@@ -38,7 +44,10 @@ internal fun Routing.cards(marvelCDbDataSource: MarvelCDbDataSource) {
         val result = marvelCDbDataSource.getCardImage(cardCode)
         if (result.isFailure) {
             val throwable = result.exceptionOrNull()!!
-            call.respond(HttpStatusCode.InternalServerError, ErrorResponseDto(throwable.message.toString()))
+            call.respond(
+                HttpStatusCode.InternalServerError,
+                ErrorResponseDto(HttpStatusCode.InternalServerError, throwable.message.toString())
+            )
             return@get
         }
 

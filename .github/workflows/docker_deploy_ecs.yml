@@ -12,7 +12,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build_and_deploy:
+  deploy:
+    name: Build, Tag, Push Docker image and Deploy to AWS ECS
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -34,6 +35,14 @@ jobs:
       - name: Log in to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Build Distribution
+        run: |
+          ./gradlew installDist
+
+      - name: Build the Docker image
+        run: |
+          docker build --platform linux/amd64 -t schacherpro/mcc-server .
 
       # Step 4: Build the Docker image
       - name: Build the Docker image

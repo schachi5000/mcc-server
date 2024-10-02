@@ -2,8 +2,8 @@ name:
   Docker Deployment to ESC
 
 on:
-  pull_request:
-    branches-ignore:
+  push:
+    branches:
       - release
 
 concurrency:

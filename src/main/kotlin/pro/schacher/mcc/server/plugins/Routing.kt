@@ -7,10 +7,8 @@ import pro.schacher.mcc.server.plugins.routes.*
 
 fun Application.configureRouting(marvelCDbDataSource: MarvelCDbDataSource) {
     routing {
-        card(marvelCDbDataSource)
-        deck(marvelCDbDataSource)
+        cards(marvelCDbDataSource)
         decks(marvelCDbDataSource)
-        pack(marvelCDbDataSource)
         packs(marvelCDbDataSource)
         spotlight(marvelCDbDataSource)
         health()

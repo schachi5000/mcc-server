@@ -5,8 +5,21 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import pro.schacher.mcc.server.datasource.MarvelCDbDataSource
 
-fun Routing.deck(marvelCDbDataSource: MarvelCDbDataSource) {
-    get("/deck/{deckId}") {
+private const val PREFIX = "/api/v1/decks"
+
+fun Routing.decks(marvelCDbDataSource: MarvelCDbDataSource) {
+    get(PREFIX) {
+        val authHeader = call.request.headers["Authorization"]
+        if (authHeader == null) {
+            call.respond(HttpStatusCode.BadRequest, "AuthHeader missing")
+            return@get
+        }
+
+        val allPacks = marvelCDbDataSource.getAllUserDecks(authHeader)
+        call.respond(allPacks)
+    }
+
+    get("$PREFIX/{deckId}") {
         val deckId = call.pathParameters["deckId"]
         if (deckId == null) {
             call.respond(HttpStatusCode.BadRequest, "No deck found")
@@ -23,7 +36,7 @@ fun Routing.deck(marvelCDbDataSource: MarvelCDbDataSource) {
         call.respond(allPacks)
     }
 
-    put("/deck/{deckId}") {
+    put("$PREFIX/{deckId}") {
         val authHeader = call.request.headers["Authorization"]
         if (authHeader == null) {
             call.respond(HttpStatusCode.BadRequest, "AuthHeader missing")

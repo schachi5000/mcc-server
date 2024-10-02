@@ -25,7 +25,9 @@ class MarvelCDbDataSource {
 
     private val httpClient = HttpClient(CIO) {
         followRedirects = true
-        install(HttpCache)
+        install(HttpCache) {
+
+        }
         install(ContentNegotiation) {
             json(Json {
                 ignoreUnknownKeys = true
@@ -46,24 +48,22 @@ class MarvelCDbDataSource {
         }
     }
 
+
     suspend fun getAllPacks(): List<PackDto> = withContext(Dispatchers.IO) {
         httpClient.get("$serviceUrl/packs")
             .body<List<PackDto>>()
     }
 
-    suspend fun getCardsInPack(packCode: String): List<CardDto> {
-        return httpClient.get("$serviceUrl/pack/$packCode")
-            .body<List<CardDto>>()
+    suspend fun getCardsInPack(packCode: String): List<CardDto> = withContext(Dispatchers.IO) {
+        httpClient.get("$serviceUrl/pack/$packCode").body<List<CardDto>>()
     }
 
-    suspend fun getCard(cardCode: String): CardDto {
-        return httpClient.get("$serviceUrl/card/$cardCode")
-            .body<CardDto>()
+    suspend fun getCard(cardCode: String): CardDto = withContext(Dispatchers.IO) {
+        httpClient.get("$serviceUrl/card/$cardCode").body<CardDto>()
     }
 
-    suspend fun getSpotlightDecksByDate(date: String): List<DeckDto> {
-        return httpClient.get("$serviceUrl/spotlight/${date}")
-            .body<List<DeckDto>>()
+    suspend fun getSpotlightDecksByDate(date: String): List<DeckDto> = withContext(Dispatchers.IO) {
+        httpClient.get("$serviceUrl/spotlight/${date}").body<List<DeckDto>>()
     }
 
     suspend fun getCardImage(cardCode: String): Result<ByteArray> = runCatching {
@@ -75,23 +75,25 @@ class MarvelCDbDataSource {
         response.bodyAsBytes()
     }
 
-    suspend fun getDeck(deckId: String, authToken: String): DeckDto =
+    suspend fun getDeck(deckId: String, authToken: String): DeckDto = withContext(Dispatchers.IO) {
         httpClient.get("$serviceUrl/api/oauth2/deck/load/$deckId") {
             headers { append("Authorization", authToken) }
         }.body<DeckDto>()
-
-    suspend fun getAllUserDecks(authHeader: String): List<DeckDto> {
-        return httpClient.get("$serviceUrl/api/oauth2/decks") {
-            headers { append("Authorization", authHeader) }
-        }
-            .body<List<DeckDto>>()
     }
 
-    suspend fun updateDeck(deckId: String, slots: String, authHeader: String): DeckUpdateResponseDto =
-        this.httpClient.put("$serviceUrl/api/oauth2/deck/save/${deckId}") {
+    suspend fun getAllUserDecks(authHeader: String): List<DeckDto> = withContext(Dispatchers.IO) {
+        httpClient.get("$serviceUrl/api/oauth2/decks") {
+            headers { append("Authorization", authHeader) }
+        }.body<List<DeckDto>>()
+    }
+
+    suspend fun updateDeck(deckId: String, slots: String, authHeader: String):
+            DeckUpdateResponseDto = withContext(Dispatchers.IO) {
+        httpClient.put("$serviceUrl/api/oauth2/deck/save/${deckId}") {
             headers { append("Authorization", authHeader) }
             parameter("slots", slots)
         }.body<DeckUpdateResponseDto>()
+    }
 }
 
 class RemoteServiceException(statusCode: HttpStatusCode, message: String) :

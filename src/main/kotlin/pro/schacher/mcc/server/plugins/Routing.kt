@@ -1,8 +1,6 @@
 package pro.schacher.mcc.server.plugins
 
-import io.ktor.http.*
 import io.ktor.server.application.*
-import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import pro.schacher.mcc.server.datasource.MarvelCDbDataSource
 import pro.schacher.mcc.server.plugins.routes.*
@@ -15,9 +13,7 @@ fun Application.configureRouting(marvelCDbDataSource: MarvelCDbDataSource) {
         pack(marvelCDbDataSource)
         packs(marvelCDbDataSource)
         spotlight(marvelCDbDataSource)
-        get("/health") {
-            call.respond(HttpStatusCode.OK)
-        }
+        health()
     }
 }
 

@@ -1,16 +1,23 @@
 package pro.schacher.mcc.server.plugins.routes
 
-import io.ktor.http.*
-import io.ktor.server.response.*
-import io.ktor.server.routing.*
+import io.ktor.http.HttpStatusCode
+import io.ktor.server.response.respond
+import io.ktor.server.routing.Routing
+import io.ktor.server.routing.get
 import pro.schacher.mcc.server.datasource.MarvelCDbDataSource
 import pro.schacher.mcc.server.dto.ErrorResponseDto
+import kotlin.collections.mutableMapOf
+import kotlin.collections.set
 
 private val imageCache = mutableMapOf<String, ByteArray>()
 
 private const val PREFIX = "/api/v1/cards"
 
 internal fun Routing.cards(marvelCDbDataSource: MarvelCDbDataSource) {
+    get(PREFIX) {
+        call.respond(marvelCDbDataSource.getAllCards())
+    }
+
     get("$PREFIX/{cardCode}") {
         val cardCode = call.pathParameters["cardCode"]
         if (cardCode == null) {

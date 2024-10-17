@@ -1,13 +1,16 @@
 package pro.schacher.mcc.server
 
-import io.ktor.serialization.kotlinx.json.*
-import io.ktor.server.application.*
-import io.ktor.server.engine.*
-import io.ktor.server.netty.*
-import io.ktor.server.plugins.contentnegotiation.*
+import io.ktor.serialization.kotlinx.json.json
+import io.ktor.server.application.Application
+import io.ktor.server.application.install
+import io.ktor.server.engine.embeddedServer
+import io.ktor.server.netty.Netty
+import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
 import kotlinx.serialization.json.Json
 import pro.schacher.mcc.server.datasource.MarvelCDbDataSource
 import pro.schacher.mcc.server.plugins.configureRouting
+
+private val serviceUrl = "https://3ipbqpd2fj.execute-api.eu-north-1.amazonaws.com"
 
 fun main(args: Array<String>) {
     println("Starting Server")
@@ -23,7 +26,8 @@ fun Application.module() {
     install(ContentNegotiation) {
         json(Json {
             prettyPrint = true
+            explicitNulls = false
         })
     }
-    configureRouting(MarvelCDbDataSource())
+    configureRouting(MarvelCDbDataSource(serviceUrl))
 }

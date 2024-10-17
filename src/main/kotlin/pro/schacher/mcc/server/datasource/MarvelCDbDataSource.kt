@@ -1,17 +1,24 @@
 package pro.schacher.mcc.server.datasource
 
-import io.ktor.client.*
-import io.ktor.client.call.*
-import io.ktor.client.engine.cio.*
-import io.ktor.client.plugins.*
-import io.ktor.client.plugins.cache.*
-import io.ktor.client.plugins.contentnegotiation.*
-import io.ktor.client.plugins.logging.*
-import io.ktor.client.request.*
-import io.ktor.client.statement.*
-import io.ktor.http.*
-import io.ktor.serialization.kotlinx.json.*
+import io.ktor.client.HttpClient
+import io.ktor.client.call.body
+import io.ktor.client.engine.cio.CIO
+import io.ktor.client.plugins.HttpRequestRetry
+import io.ktor.client.plugins.cache.HttpCache
+import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.client.plugins.logging.LogLevel
+import io.ktor.client.plugins.logging.Logger
+import io.ktor.client.plugins.logging.Logging
+import io.ktor.client.request.get
+import io.ktor.client.request.headers
+import io.ktor.client.request.parameter
+import io.ktor.client.request.put
+import io.ktor.client.statement.bodyAsBytes
+import io.ktor.http.HttpStatusCode
+import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.withContext
 import kotlinx.io.IOException
 import kotlinx.serialization.json.Json
@@ -19,9 +26,14 @@ import pro.schacher.mcc.server.dto.CardDto
 import pro.schacher.mcc.server.dto.DeckDto
 import pro.schacher.mcc.server.dto.DeckUpdateResponseDto
 import pro.schacher.mcc.server.dto.PackDto
+import kotlin.collections.List
+import kotlin.collections.flatten
+import kotlin.collections.map
+import kotlin.collections.mutableMapOf
+import kotlin.collections.set
 
-class MarvelCDbDataSource {
-    private val serviceUrl = "https://3ipbqpd2fj.execute-api.eu-north-1.amazonaws.com"
+class MarvelCDbDataSource(private val serviceUrl: String) {
+    private val allCardsCache = mutableMapOf<String, List<CardDto>>()
 
     private val httpClient = HttpClient(CIO) {
         followRedirects = true
@@ -48,14 +60,29 @@ class MarvelCDbDataSource {
         }
     }
 
-
     suspend fun getAllPacks(): List<PackDto> = withContext(Dispatchers.IO) {
         httpClient.get("$serviceUrl/packs")
             .body<List<PackDto>>()
     }
 
+    suspend fun getAllCards(): List<CardDto> = withContext(Dispatchers.IO) {
+        val allPacks = getAllPacks()
+
+        return@withContext allPacks.map {
+            async {
+                getCardsInPack(it.code)
+            }
+        }.awaitAll().flatten()
+    }
+
     suspend fun getCardsInPack(packCode: String): List<CardDto> = withContext(Dispatchers.IO) {
-        httpClient.get("$serviceUrl/pack/$packCode").body<List<CardDto>>()
+        allCardsCache[packCode]?.let {
+            return@withContext it
+        }
+
+        httpClient.get("$serviceUrl/pack/$packCode").body<List<CardDto>>().also {
+            allCardsCache[packCode] = it
+        }
     }
 
     suspend fun getCard(cardCode: String): CardDto = withContext(Dispatchers.IO) {
@@ -69,7 +96,10 @@ class MarvelCDbDataSource {
     suspend fun getCardImage(cardCode: String): Result<ByteArray> = runCatching {
         val response = httpClient.get("$serviceUrl/image/$cardCode")
         if (response.status != HttpStatusCode.OK) {
-            throw throw RemoteServiceException(response.status, "Could not load image for $cardCode")
+            throw throw RemoteServiceException(
+                response.status,
+                "Could not load image for $cardCode"
+            )
         }
 
         response.bodyAsBytes()

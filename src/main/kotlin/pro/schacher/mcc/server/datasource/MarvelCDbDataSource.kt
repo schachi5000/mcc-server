@@ -130,9 +130,7 @@ class MarvelCDbDataSource(private val serviceUrl: String) {
             httpClient.post("$serviceUrl/api/oauth2/deck/new") {
                 headers { append("Authorization", authToken) }
                 parameter("investigator", heroCardCode)
-                deckName?.let {
-                    parameter("name", deckName)
-                }
+                parameter("name", deckName)
             }.body<CreateDeckResponseDto>()
         }
 

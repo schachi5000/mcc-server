@@ -12,8 +12,10 @@ import io.ktor.client.plugins.logging.Logging
 import io.ktor.client.request.get
 import io.ktor.client.request.headers
 import io.ktor.client.request.parameter
+import io.ktor.client.request.post
 import io.ktor.client.request.put
 import io.ktor.client.statement.bodyAsBytes
+import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpStatusCode
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.Dispatchers
@@ -23,13 +25,10 @@ import kotlinx.coroutines.withContext
 import kotlinx.io.IOException
 import kotlinx.serialization.json.Json
 import pro.schacher.mcc.server.dto.CardDto
+import pro.schacher.mcc.server.dto.CreateDeckResponseDto
 import pro.schacher.mcc.server.dto.DeckDto
 import pro.schacher.mcc.server.dto.DeckUpdateResponseDto
 import pro.schacher.mcc.server.dto.PackDto
-import kotlin.collections.List
-import kotlin.collections.flatten
-import kotlin.collections.map
-import kotlin.collections.mutableMapOf
 import kotlin.collections.set
 
 class MarvelCDbDataSource(private val serviceUrl: String) {
@@ -111,16 +110,34 @@ class MarvelCDbDataSource(private val serviceUrl: String) {
         }.body<DeckDto>()
     }
 
-    suspend fun getAllUserDecks(authHeader: String): List<DeckDto> = withContext(Dispatchers.IO) {
+    suspend fun getAllUserDecks(authToken: String): List<DeckDto> = withContext(Dispatchers.IO) {
         httpClient.get("$serviceUrl/api/oauth2/decks") {
-            headers { append("Authorization", authHeader) }
+            headers { append("Authorization", authToken) }
         }.body<List<DeckDto>>()
     }
 
-    suspend fun updateDeck(deckId: String, slots: String, authHeader: String):
+    suspend fun getAllUserDecksAsString(authToken: String) = withContext(Dispatchers.IO) {
+        httpClient.get("$serviceUrl/api/oauth2/decks") {
+            headers { append("Authorization", authToken) }
+        }.also {
+            val result = it.bodyAsText()
+            println(result)
+        }.bodyAsText()
+    }
+
+    suspend fun createDeck(heroCardCode: String, deckName: String?, authToken: String) =
+        withContext(Dispatchers.IO) {
+            httpClient.post("$serviceUrl/api/oauth2/deck/new") {
+                headers { append("Authorization", authToken) }
+                parameter("investigator", heroCardCode)
+                parameter("name", deckName)
+            }.body<CreateDeckResponseDto>()
+        }
+
+    suspend fun updateDeck(deckId: String, slots: String, authToken: String):
             DeckUpdateResponseDto = withContext(Dispatchers.IO) {
         httpClient.put("$serviceUrl/api/oauth2/deck/save/${deckId}") {
-            headers { append("Authorization", authHeader) }
+            headers { append("Authorization", authToken) }
             parameter("slots", slots)
         }.body<DeckUpdateResponseDto>()
     }

@@ -10,7 +10,7 @@ import kotlinx.serialization.json.Json
 import pro.schacher.mcc.server.datasource.MarvelCDbDataSource
 import pro.schacher.mcc.server.plugins.configureRouting
 
-private val serviceUrl = "https://3ipbqpd2fj.execute-api.eu-north-1.amazonaws.com"
+private const val SERVICE_URL = "https://3ipbqpd2fj.execute-api.eu-north-1.amazonaws.com"
 
 fun main(args: Array<String>) {
     println("Starting Server")
@@ -29,5 +29,5 @@ fun Application.module() {
             explicitNulls = false
         })
     }
-    configureRouting(MarvelCDbDataSource(serviceUrl))
+    configureRouting(MarvelCDbDataSource(SERVICE_URL))
 }

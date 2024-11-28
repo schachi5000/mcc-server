@@ -1,6 +1,7 @@
 package pro.schacher.mcc.server.dto
 
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonElement
 
 @Serializable
 data class DeckDto(
@@ -12,8 +13,8 @@ data class DeckDto(
     val investigator_name: String?,
     val meta: String?,
     val name: String,
-    val slots: Map<String, Int>,
-    val tags: String,
+    val slots: JsonElement?,
+    val tags: String?,
     val user_id: Int?,
     val version: String?,
     val problem: String?

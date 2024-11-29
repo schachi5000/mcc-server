@@ -312,5 +312,4 @@ internal fun MarvelCdbCard.toCardDto(): CardDto = CardDto(
     typeCode = this.type_code,
     typeName = this.type_name,
     url = this.url,
-    meta = null
 )

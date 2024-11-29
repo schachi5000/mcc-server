@@ -14,7 +14,9 @@ import io.ktor.client.request.headers
 import io.ktor.client.request.parameter
 import io.ktor.client.request.post
 import io.ktor.client.request.put
+import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsBytes
+import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpStatusCode
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.Dispatchers
@@ -118,17 +120,17 @@ class MarvelCDbDataSource(private val serviceUrl: String) {
     suspend fun getDeck(deckId: String, authToken: String): DeckDto = withContext(Dispatchers.IO) {
         httpClient.get("$serviceUrl/api/oauth2/deck/load/$deckId") {
             headers { append("Authorization", authToken) }
-        }.body<MarvelCdbDeck>().toDeckDto()
+        }
+            .validateStatus()
+            .body<MarvelCdbDeck>()
+            .toDeckDto()
     }
 
     suspend fun getAllUserDecks(authToken: String): List<DeckDto> = withContext(Dispatchers.IO) {
         httpClient.get("$serviceUrl/api/oauth2/decks") {
             headers { append("Authorization", authToken) }
-        }.also {
-            if (it.status == HttpStatusCode.Unauthorized) {
-                throw RemoteServiceException(it.status, "Unauthorized")
-            }
         }
+            .validateStatus()
             .body<List<MarvelCdbDeck>>()
             .map { it.toDeckDto() }
     }
@@ -139,7 +141,9 @@ class MarvelCDbDataSource(private val serviceUrl: String) {
                 headers { append("Authorization", authToken) }
                 parameter("investigator", heroCardCode)
                 parameter("name", deckName)
-            }.body<CreateDeckResponseDto>()
+            }
+                .validateStatus()
+                .body<CreateDeckResponseDto>()
         }
 
     suspend fun updateDeck(deckId: String, slots: String, authToken: String):
@@ -147,12 +151,25 @@ class MarvelCDbDataSource(private val serviceUrl: String) {
         httpClient.put("$serviceUrl/api/oauth2/deck/save/${deckId}") {
             headers { append("Authorization", authToken) }
             parameter("slots", slots)
-        }.body<DeckUpdateResponseDto>()
+        }
+            .validateStatus()
+            .body<DeckUpdateResponseDto>()
     }
 }
 
-class RemoteServiceException(statusCode: HttpStatusCode, message: String) :
-    IOException("[${statusCode.value}] $message")
+private suspend fun HttpResponse.validateStatus(): HttpResponse {
+    when (this.status) {
+        HttpStatusCode.OK -> return this
+        HttpStatusCode.Unauthorized -> throw AuthorizationException()
+        else -> throw RemoteServiceException(this.status, this.bodyAsText())
+    }
+}
+
+class AuthorizationException() :
+    RemoteServiceException(HttpStatusCode.Unauthorized, "Token invalid or expired")
+
+open class RemoteServiceException(val statusCode: HttpStatusCode, message: String) :
+    IOException(message)
 
 @Serializable
 internal data class MarvelCdbDeck(

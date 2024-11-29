@@ -59,6 +59,5 @@ internal fun Routing.cards(marvelCDbDataSource: MarvelCDbDataSource) {
 
         imageCache[cardCode] = result.getOrThrow()
         call.respond(result.getOrThrow())
-
     }
 }

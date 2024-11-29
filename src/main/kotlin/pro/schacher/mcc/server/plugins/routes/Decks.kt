@@ -7,9 +7,9 @@ import io.ktor.server.routing.Routing
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import io.ktor.server.routing.put
-import pro.schacher.mcc.server.datasource.MarvelCDbDataSource
 import pro.schacher.mcc.server.dto.CreateDeckRequestDto
 import pro.schacher.mcc.server.dto.ErrorResponseDto
+import pro.schacher.mcc.server.marvelcdb.MarvelCDbDataSource
 
 private const val PREFIX = "/api/v1/decks"
 

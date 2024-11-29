@@ -1,9 +1,10 @@
 package pro.schacher.mcc.server.plugins.routes
 
-import io.ktor.http.*
-import io.ktor.server.response.*
-import io.ktor.server.routing.*
-import pro.schacher.mcc.server.datasource.MarvelCDbDataSource
+import io.ktor.http.HttpStatusCode
+import io.ktor.server.response.respond
+import io.ktor.server.routing.Routing
+import io.ktor.server.routing.get
+import pro.schacher.mcc.server.marvelcdb.MarvelCDbDataSource
 
 private const val PREFIX = "/api/v1/packs"
 

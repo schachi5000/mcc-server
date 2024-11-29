@@ -4,9 +4,8 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.server.response.respond
 import io.ktor.server.routing.Routing
 import io.ktor.server.routing.get
-import pro.schacher.mcc.server.datasource.MarvelCDbDataSource
 import pro.schacher.mcc.server.dto.ErrorResponseDto
-import kotlin.collections.mutableMapOf
+import pro.schacher.mcc.server.marvelcdb.MarvelCDbDataSource
 import kotlin.collections.set
 
 private val imageCache = mutableMapOf<String, ByteArray>()

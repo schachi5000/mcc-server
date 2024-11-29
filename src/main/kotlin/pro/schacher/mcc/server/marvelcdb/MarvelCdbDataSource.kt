@@ -1,4 +1,4 @@
-package pro.schacher.mcc.server.datasource
+package pro.schacher.mcc.server.marvelcdb
 
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
@@ -22,6 +22,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.withContext
 import kotlinx.io.IOException
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.int
@@ -123,6 +124,10 @@ class MarvelCDbDataSource(private val serviceUrl: String) {
     suspend fun getAllUserDecks(authToken: String): List<DeckDto> = withContext(Dispatchers.IO) {
         httpClient.get("$serviceUrl/api/oauth2/decks") {
             headers { append("Authorization", authToken) }
+        }.also {
+            if (it.status == HttpStatusCode.Unauthorized) {
+                throw RemoteServiceException(it.status, "Unauthorized")
+            }
         }
             .body<List<MarvelCdbDeck>>()
             .map { it.toDeckDto() }
@@ -149,6 +154,23 @@ class MarvelCDbDataSource(private val serviceUrl: String) {
 class RemoteServiceException(statusCode: HttpStatusCode, message: String) :
     IOException("[${statusCode.value}] $message")
 
+@Serializable
+internal data class MarvelCdbDeck(
+    val date_creation: String,
+    val date_update: String,
+    val description_md: String?,
+    val id: Int,
+    val investigator_code: String?,
+    val investigator_name: String?,
+    val meta: String?,
+    val name: String,
+    val slots: JsonElement?,
+    val tags: String?,
+    val user_id: Int?,
+    val version: String?,
+    val problem: String?
+)
+
 internal fun MarvelCdbDeck.toDeckDto(): DeckDto = DeckDto(
     createdOn = this.date_creation,
     updatedOn = this.date_update,
@@ -165,17 +187,6 @@ internal fun MarvelCdbDeck.toDeckDto(): DeckDto = DeckDto(
     aspect = this.meta?.parseAspect()
 )
 
-private fun String.takeIfNotBlank(): String? = this.ifBlank { null }
-
-private fun JsonElement.toMap(): Map<String, Int>? = try {
-    this.jsonObject.map { (key, value) ->
-        key to value.jsonPrimitive.int
-    }.toMap()
-} catch (e: Exception) {
-    println("Could not convert map for $this")
-    null
-}
-
 private const val LEADERSHIP = "leadership"
 private const val JUSTICE = "justice"
 private const val AGGRESSION = "aggression"
@@ -187,6 +198,71 @@ private fun String.parseAspect(): String? = when {
     this.contains(AGGRESSION) -> AGGRESSION
     this.contains(PROTECTION) -> PROTECTION
     else -> null
+}
+
+
+private fun String.takeIfNotBlank(): String? = this.ifBlank { null }
+
+private fun JsonElement.toMap(): Map<String, Int>? = try {
+    this.jsonObject.map { (key, value) ->
+        key to value.jsonPrimitive.int
+    }.toMap()
+} catch (e: Exception) {
+    println("Could not convert map for $this")
+    null
+}
+
+@Serializable
+internal data class MarvelCdbCard(
+    val attack: Int?,
+    val base_threat_fixed: Boolean,
+    val card_set_code: String?,
+    val card_set_name: String?,
+    val card_set_type_name_code: String?,
+    val code: String,
+    val deck_limit: Int?,
+    val defense: Int?,
+    val double_sided: Boolean,
+    val escalation_threat_fixed: Boolean,
+    val faction_code: String,
+    val faction_name: String,
+    val flavor: String?,
+    val hand_size: Int?,
+    val cost: Int?,
+    val health: Int?,
+    val health_per_hero: Boolean,
+    val hidden: Boolean,
+    val imagesrc: String?,
+    val is_unique: Boolean,
+    val linked_card: MarvelCdbCard?,
+    val linked_to_code: String?,
+    val linked_to_name: String?,
+    val meta: Meta?,
+    val name: String,
+    val octgn_id: String?,
+    val pack_code: String,
+    val pack_name: String,
+    val permanent: Boolean,
+    val position: Int,
+    val quantity: Int,
+    val real_name: String?,
+    val real_text: String?,
+    val real_traits: String?,
+    val text: String?,
+    val boost_text: String?,
+    val attack_text: String?,
+    val threat_fixed: Boolean,
+    val thwart: Int?,
+    val traits: String?,
+    val type_code: String?,
+    val type_name: String?,
+    val url: String
+) {
+    @Serializable
+    data class Meta(
+        val colors: List<String>,
+        val offset: String?
+    )
 }
 
 internal fun MarvelCdbCard.toCardDto(): CardDto = CardDto(

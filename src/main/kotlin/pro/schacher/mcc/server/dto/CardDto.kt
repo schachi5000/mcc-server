@@ -27,7 +27,6 @@ data class CardDto(
     val linkedCard: CardDto?,
     val linkedCardCode: String?,
     val linkedCardName: String?,
-    val meta: Meta?,
     val name: String,
     val octagonId: String?,
     val packCode: String,

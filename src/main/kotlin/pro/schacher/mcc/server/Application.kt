@@ -7,7 +7,7 @@ import io.ktor.server.engine.embeddedServer
 import io.ktor.server.netty.Netty
 import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
 import kotlinx.serialization.json.Json
-import pro.schacher.mcc.server.datasource.MarvelCDbDataSource
+import pro.schacher.mcc.server.marvelcdb.MarvelCDbDataSource
 import pro.schacher.mcc.server.plugins.configureRouting
 
 private const val SERVICE_URL = "https://3ipbqpd2fj.execute-api.eu-north-1.amazonaws.com"

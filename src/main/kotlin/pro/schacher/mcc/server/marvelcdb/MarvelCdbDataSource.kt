@@ -17,6 +17,8 @@ import io.ktor.client.request.put
 import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsBytes
 import io.ktor.client.statement.bodyAsText
+import io.ktor.http.HttpHeaders.Authorization
+import io.ktor.http.HttpHeaders.CacheControl
 import io.ktor.http.HttpStatusCode
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.Dispatchers
@@ -42,9 +44,7 @@ class MarvelCDbDataSource(private val serviceUrl: String) {
 
     private val httpClient = HttpClient(CIO) {
         followRedirects = true
-        install(HttpCache) {
-
-        }
+        install(HttpCache) {}
         install(ContentNegotiation) {
             json(Json {
                 ignoreUnknownKeys = true
@@ -100,7 +100,11 @@ class MarvelCDbDataSource(private val serviceUrl: String) {
     }
 
     suspend fun getSpotlightDecksByDate(date: String): List<DeckDto> = withContext(Dispatchers.IO) {
-        httpClient.get("$serviceUrl/spotlight/${date}")
+        httpClient.get("$serviceUrl/spotlight/${date}") {
+            headers {
+                append(CacheControl, "no-store")
+            }
+        }
             .body<List<MarvelCdbDeck>>()
             .map { it.toDeckDto() }
     }
@@ -119,7 +123,11 @@ class MarvelCDbDataSource(private val serviceUrl: String) {
 
     suspend fun getDeck(deckId: String, authToken: String): DeckDto = withContext(Dispatchers.IO) {
         httpClient.get("$serviceUrl/api/oauth2/deck/load/$deckId") {
-            headers { append("Authorization", authToken) }
+            headers {
+                append(Authorization, authToken)
+                append(CacheControl, "no-store")
+            }
+
         }
             .validateStatus()
             .body<MarvelCdbDeck>()
@@ -128,7 +136,11 @@ class MarvelCDbDataSource(private val serviceUrl: String) {
 
     suspend fun getAllUserDecks(authToken: String): List<DeckDto> = withContext(Dispatchers.IO) {
         httpClient.get("$serviceUrl/api/oauth2/decks") {
-            headers { append("Authorization", authToken) }
+            headers {
+                append(Authorization, authToken)
+                append(CacheControl, "no-store")
+            }
+
         }
             .validateStatus()
             .body<List<MarvelCdbDeck>>()
@@ -138,7 +150,7 @@ class MarvelCDbDataSource(private val serviceUrl: String) {
     suspend fun createDeck(heroCardCode: String, deckName: String?, authToken: String) =
         withContext(Dispatchers.IO) {
             httpClient.post("$serviceUrl/api/oauth2/deck/new") {
-                headers { append("Authorization", authToken) }
+                headers { append(Authorization, authToken) }
                 parameter("investigator", heroCardCode)
                 parameter("name", deckName)
             }
@@ -149,7 +161,7 @@ class MarvelCDbDataSource(private val serviceUrl: String) {
     suspend fun updateDeck(deckId: String, slots: String, authToken: String):
             DeckUpdateResponseDto = withContext(Dispatchers.IO) {
         httpClient.put("$serviceUrl/api/oauth2/deck/save/${deckId}") {
-            headers { append("Authorization", authToken) }
+            headers { append(Authorization, authToken) }
             parameter("slots", slots)
         }
             .validateStatus()

@@ -1,8 +1,13 @@
 package pro.schacher.mcc.server.plugins
 
-import io.ktor.server.application.*
-import io.ktor.server.routing.*
-import pro.schacher.mcc.server.datasource.MarvelCDbDataSource
+import io.ktor.http.HttpStatusCode
+import io.ktor.server.application.Application
+import io.ktor.server.response.respond
+import io.ktor.server.routing.RoutingCall
+import io.ktor.server.routing.routing
+import pro.schacher.mcc.server.dto.ErrorResponseDto
+import pro.schacher.mcc.server.marvelcdb.MarvelCDbDataSource
+import pro.schacher.mcc.server.marvelcdb.RemoteServiceException
 import pro.schacher.mcc.server.plugins.routes.cards
 import pro.schacher.mcc.server.plugins.routes.decks
 import pro.schacher.mcc.server.plugins.routes.health
@@ -17,6 +22,32 @@ fun Application.configureRouting(marvelCDbDataSource: MarvelCDbDataSource) {
     }
 }
 
+suspend fun runAndHandleErrors(call: RoutingCall, block: suspend (RoutingCall) -> Unit) {
+    try {
+        block(call)
+    } catch (e: RemoteServiceException) {
+        call.respond(e.statusCode, ErrorResponseDto(e.statusCode, e.message.toString()))
+    } catch (e: Exception) {
+        call.respond(
+            HttpStatusCode.BadRequest,
+            ErrorResponseDto(HttpStatusCode.BadRequest, e.message.toString())
+        )
+    }
+}
+
+fun RoutingCall.getPathParameterOrThrow(parameter: String): String {
+    return this.pathParameters[parameter] ?: throw RemoteServiceException(
+        HttpStatusCode.BadRequest,
+        "Parameter [$parameter] missing"
+    )
+}
+
+fun RoutingCall.getQueryParameterOrThrow(parameter: String): String {
+    return this.request.queryParameters[parameter] ?: throw RemoteServiceException(
+        HttpStatusCode.BadRequest,
+        "Parameter [$parameter] missing"
+    )
+}
 
 
 

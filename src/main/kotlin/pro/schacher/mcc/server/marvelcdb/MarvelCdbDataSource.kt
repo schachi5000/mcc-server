@@ -15,9 +15,7 @@ import io.ktor.client.request.headers
 import io.ktor.client.request.parameter
 import io.ktor.client.request.post
 import io.ktor.client.request.put
-import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsBytes
-import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpHeaders.Authorization
 import io.ktor.http.HttpHeaders.CacheControl
 import io.ktor.http.HttpStatusCode
@@ -99,7 +97,6 @@ class MarvelCDbDataSource(private val serviceUrl: String) {
         }
 
         httpClient.get("$serviceUrl/api/public/cards/$packCode")
-            .validateStatus()
             .body<List<MarvelCdbCard>>()
             .map { it.toCardDto() }
             .also {
@@ -147,7 +144,6 @@ class MarvelCDbDataSource(private val serviceUrl: String) {
                 append(CacheControl, "no-store")
             }
         }
-            .validateStatus()
             .body<MarvelCdbDeck>()
             .toDeckDto()
     }
@@ -159,7 +155,6 @@ class MarvelCDbDataSource(private val serviceUrl: String) {
                 append(CacheControl, "no-store")
             }
         }
-            .validateStatus()
             .body<List<MarvelCdbDeck>>()
             .map { it.toDeckDto() }
     }
@@ -171,10 +166,6 @@ class MarvelCDbDataSource(private val serviceUrl: String) {
                 parameter("investigator", heroCardCode)
                 parameter("name", deckName)
             }
-                .validateStatus()
-                .also {
-                    println(it.bodyAsText())
-                }
                 .body<MarvelCdbResponse>()
                 .toCreateDeckResponseDto()
         }
@@ -185,16 +176,7 @@ class MarvelCDbDataSource(private val serviceUrl: String) {
                 headers { append(Authorization, authToken) }
                 parameter("slots", slots)
             }
-                .validateStatus()
         }
-}
-
-private suspend fun HttpResponse.validateStatus(): HttpResponse {
-    when (this.status) {
-        HttpStatusCode.OK -> return this
-        HttpStatusCode.Unauthorized -> throw AuthorizationException()
-        else -> throw RemoteServiceException(this.status, this.bodyAsText())
-    }
 }
 
 class AuthorizationException() :

@@ -10,7 +10,7 @@ import kotlinx.serialization.json.Json
 import pro.schacher.mcc.server.marvelcdb.MarvelCDbDataSource
 import pro.schacher.mcc.server.plugins.configureRouting
 
-private const val SERVICE_URL = "https://3ipbqpd2fj.execute-api.eu-north-1.amazonaws.com"
+private const val SERVICE_URL = "https://de.marvelcdb.com"
 
 fun main(args: Array<String>) {
     println("Starting Server")

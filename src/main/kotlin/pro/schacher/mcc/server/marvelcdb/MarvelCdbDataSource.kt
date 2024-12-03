@@ -44,7 +44,9 @@ class MarvelCDbDataSource(private val serviceUrl: String) {
 
     private val httpClient = HttpClient(CIO) {
         followRedirects = true
-        install(HttpCache) {}
+        install(HttpCache) {
+
+        }
         install(ContentNegotiation) {
             json(Json {
                 ignoreUnknownKeys = true

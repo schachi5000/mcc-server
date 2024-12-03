@@ -29,25 +29,18 @@ suspend fun runAndHandleErrors(call: RoutingCall, block: suspend (RoutingCall) -
         call.respond(e.statusCode, ErrorResponseDto(e.statusCode, e.message.toString()))
     } catch (e: Exception) {
         call.respond(
-            HttpStatusCode.BadRequest,
-            ErrorResponseDto(HttpStatusCode.BadRequest, e.message.toString())
+            HttpStatusCode.InternalServerError,
+            ErrorResponseDto(HttpStatusCode.InternalServerError, e.message.toString())
         )
     }
 }
 
-fun RoutingCall.getPathParameterOrThrow(parameter: String): String {
-    return this.pathParameters[parameter] ?: throw RemoteServiceException(
-        HttpStatusCode.BadRequest,
-        "Parameter [$parameter] missing"
-    )
-}
+fun RoutingCall.getPathParameterOrThrow(parameter: String) = this.pathParameters[parameter]
+    ?: throw RemoteServiceException(HttpStatusCode.BadRequest, "Parameter [$parameter] missing")
 
-fun RoutingCall.getQueryParameterOrThrow(parameter: String): String {
-    return this.request.queryParameters[parameter] ?: throw RemoteServiceException(
-        HttpStatusCode.BadRequest,
-        "Parameter [$parameter] missing"
-    )
-}
+fun RoutingCall.getQueryParameterOrThrow(parameter: String) =
+    this.request.queryParameters[parameter]
+        ?: throw RemoteServiceException(HttpStatusCode.BadRequest, "Parameter [$parameter] missing")
 
 
 

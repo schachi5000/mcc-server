@@ -21,7 +21,9 @@ import io.ktor.http.HttpHeaders.Authorization
 import io.ktor.http.HttpHeaders.CacheControl
 import io.ktor.http.HttpStatusCode
 import io.ktor.serialization.kotlinx.json.json
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.withContext
@@ -39,8 +41,10 @@ import pro.schacher.mcc.server.dto.DeckUpdateResponseDto
 import pro.schacher.mcc.server.dto.PackDto
 import kotlin.collections.set
 
-class MarvelCDbDataSource(private val serviceUrl: String) {
-    private val allCardsCache = mutableMapOf<String, List<CardDto>>()
+class MarvelCDbDataSource(
+    private val serviceUrl: String,
+    private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
+) {
 
     private val httpClient = HttpClient(CIO) {
         followRedirects = true
@@ -67,10 +71,7 @@ class MarvelCDbDataSource(private val serviceUrl: String) {
         }
     }
 
-    suspend fun getAllPacks(): List<PackDto> = withContext(Dispatchers.IO) {
-        httpClient.get("$serviceUrl/api/public/packs")
-            .body<List<PackDto>>()
-    }
+    private val allCardsCache = mutableMapOf<String, List<CardDto>>()
 
     suspend fun getAllCards(): List<CardDto> = withContext(Dispatchers.IO) {
         val allPacks = getAllPacks()
@@ -82,17 +83,29 @@ class MarvelCDbDataSource(private val serviceUrl: String) {
         }.awaitAll().flatten()
     }
 
+    suspend fun getAllPacks(): List<PackDto> = withContext(Dispatchers.IO) {
+        httpClient.get("$serviceUrl/api/public/packs")
+            .body<List<PackDto>>()
+    }
+
     suspend fun getCardsInPack(packCode: String): List<CardDto> = withContext(Dispatchers.IO) {
         allCardsCache[packCode]?.let {
             return@withContext it
         }
 
         httpClient.get("$serviceUrl/api/public/cards/$packCode")
+            .validateStatus()
             .body<List<MarvelCdbCard>>()
             .map { it.toCardDto() }
             .also {
                 allCardsCache[packCode] = it
             }
+    }
+
+    suspend fun getCards(cardSetCode: String): List<CardDto> = withContext(Dispatchers.IO) {
+        getAllCards()
+            .distinct()
+            .filter { it.cardSetCode == cardSetCode }
     }
 
     suspend fun getCard(cardCode: String): CardDto = withContext(Dispatchers.IO) {
@@ -142,7 +155,6 @@ class MarvelCDbDataSource(private val serviceUrl: String) {
                 append(Authorization, authToken)
                 append(CacheControl, "no-store")
             }
-
         }
             .validateStatus()
             .body<List<MarvelCdbDeck>>()
@@ -157,7 +169,11 @@ class MarvelCDbDataSource(private val serviceUrl: String) {
                 parameter("name", deckName)
             }
                 .validateStatus()
-                .body<CreateDeckResponseDto>()
+                .also {
+                    println(it.bodyAsText())
+                }
+                .body<MarvelCdbCreateDeckResponse>()
+                .toCreateDeckResponseDto()
         }
 
     suspend fun updateDeck(deckId: String, slots: String, authToken: String):
@@ -169,7 +185,6 @@ class MarvelCDbDataSource(private val serviceUrl: String) {
             .validateStatus()
             .body<DeckUpdateResponseDto>()
     }
-
 }
 
 private suspend fun HttpResponse.validateStatus(): HttpResponse {
@@ -185,6 +200,18 @@ class AuthorizationException() :
 
 open class RemoteServiceException(val statusCode: HttpStatusCode, message: String) :
     IOException(message)
+
+@Serializable
+internal data class MarvelCdbCreateDeckResponse(
+    val success: Boolean,
+    val msg: JsonElement?
+)
+
+private fun MarvelCdbCreateDeckResponse.toCreateDeckResponseDto() = CreateDeckResponseDto(
+    success = this.success,
+    deckId = runCatching { this.msg?.jsonPrimitive?.int }.getOrNull(),
+    error = this.msg?.toString()
+)
 
 @Serializable
 internal data class MarvelCdbDeck(
@@ -211,7 +238,7 @@ internal fun MarvelCdbDeck.toDeckDto(): DeckDto = DeckDto(
     heroCode = this.investigator_code,
     heroName = this.investigator_name,
     name = this.name,
-    slots = this.slots?.toMap(),
+    slots = runCatching { this.slots?.toMap() }.getOrNull(),
     tags = this.tags?.takeIfNotBlank(),
     userId = this.user_id,
     version = this.version,
@@ -235,14 +262,10 @@ private fun String.parseAspect(): String? = when {
 
 private fun String.takeIfNotBlank(): String? = this.ifBlank { null }
 
-private fun JsonElement.toMap(): Map<String, Int>? = try {
-    this.jsonObject.map { (key, value) ->
-        key to value.jsonPrimitive.int
-    }.toMap()
-} catch (e: Exception) {
-    println("Could not convert map for $this")
-    null
-}
+private fun JsonElement.toMap(): Map<String, Int>? = this.jsonObject
+    .mapNotNull { (key, value) -> key to value.jsonPrimitive.int }
+    .toMap()
+    .takeIf { it.isNotEmpty() }
 
 @Serializable
 internal data class MarvelCdbCard(

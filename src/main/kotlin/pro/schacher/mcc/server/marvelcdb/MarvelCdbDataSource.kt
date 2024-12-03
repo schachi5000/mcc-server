@@ -66,9 +66,7 @@ class MarvelCDbDataSource(private val serviceUrl: String) {
                 when (response.status) {
                     HttpStatusCode.OK -> return@validateResponse
                     HttpStatusCode.Unauthorized -> throw AuthorizationException()
-                    else -> throw RemoteServiceException(
-                        response.status
-                    )
+                    else -> throw RemoteServiceException(response.status)
                 }
             }
         }
@@ -132,7 +130,7 @@ class MarvelCDbDataSource(private val serviceUrl: String) {
         } catch (e: Exception) {
             throw RemoteServiceException(
                 HttpStatusCode.NotFound,
-                "Could not load image for $cardCode"
+                "Could not load image for [$cardCode]"
             )
         }
     }
@@ -170,13 +168,14 @@ class MarvelCDbDataSource(private val serviceUrl: String) {
                 .toCreateDeckResponseDto()
         }
 
-    suspend fun updateDeck(deckId: String, slots: String, authToken: String) =
+    suspend fun updateDeck(deckId: String, slots: String, authToken: String) {
         withContext(Dispatchers.IO) {
             httpClient.put("$serviceUrl/api/oauth2/deck/save/${deckId}") {
                 headers { append(Authorization, authToken) }
                 parameter("slots", slots)
             }
         }
+    }
 }
 
 class AuthorizationException() :
@@ -202,7 +201,7 @@ private fun MarvelCdbResponse.toCreateDeckResponseDto() = CreateDeckResponseDto(
 )
 
 @Serializable
-internal data class MarvelCdbDeck(
+private data class MarvelCdbDeck(
     val date_creation: String,
     val date_update: String,
     val description_md: String?,
@@ -218,7 +217,7 @@ internal data class MarvelCdbDeck(
     val problem: String?
 )
 
-internal fun MarvelCdbDeck.toDeckDto(): DeckDto = DeckDto(
+private fun MarvelCdbDeck.toDeckDto(): DeckDto = DeckDto(
     createdOn = this.date_creation,
     updatedOn = this.date_update,
     description = this.description_md?.takeIfNotBlank(),
@@ -255,7 +254,7 @@ private fun JsonElement.toMap(): Map<String, Int>? = this.jsonObject
     .takeIf { it.isNotEmpty() }
 
 @Serializable
-internal data class MarvelCdbCard(
+private data class MarvelCdbCard(
     val attack: Int?,
     val base_threat_fixed: Boolean,
     val card_set_code: String?,
@@ -307,7 +306,7 @@ internal data class MarvelCdbCard(
     )
 }
 
-internal fun MarvelCdbCard.toCardDto(): CardDto = CardDto(
+private fun MarvelCdbCard.toCardDto(): CardDto = CardDto(
     attack = this.attack,
     baseThreatFixed = this.base_threat_fixed,
     cardSetCode = this.card_set_code,

@@ -1,5 +1,6 @@
 package pro.schacher.mcc.server.plugins.routes
 
+import io.ktor.http.HttpStatusCode
 import io.ktor.http.HttpStatusCode.Companion.BadRequest
 import io.ktor.http.HttpStatusCode.Companion.InternalServerError
 import io.ktor.server.request.receive
@@ -33,8 +34,8 @@ fun Routing.decks(marvelCDbDataSource: MarvelCDbDataSource) {
 
     get("$PREFIX/{deckId}") {
         runAndHandleErrors(call) {
-            val deckId = call.getPathParameterOrThrow("deckId")
-            val deck = marvelCDbDataSource.getDeck(deckId, call.getBearerToken())
+            val deckId = it.getPathParameterOrThrow("deckId")
+            val deck = marvelCDbDataSource.getDeck(deckId, it.getBearerToken())
             it.respond(deck)
         }
     }
@@ -42,9 +43,10 @@ fun Routing.decks(marvelCDbDataSource: MarvelCDbDataSource) {
     put("$PREFIX/{deckId}") {
         runAndHandleErrors(call) {
             val deckId = call.getPathParameterOrThrow("deckId")
-            val slots = call.getPathParameterOrThrow("slots")
-            val allPacks = marvelCDbDataSource.updateDeck(deckId, slots, call.getBearerToken())
-            it.respond(allPacks)
+            val slots = call.getQueryParameterOrThrow("slots")
+
+            marvelCDbDataSource.updateDeck(deckId, slots, call.getBearerToken())
+            it.respond(HttpStatusCode.OK)
         }
     }
 

@@ -28,8 +28,6 @@ internal fun Routing.cards(marvelCDbDataSource: MarvelCDbDataSource) {
     get("$PREFIX/{cardCode}/image") {
         runAndHandleErrors(call) {
             val cardCode = call.getPathParameterOrThrow("cardCode")
-            val card = marvelCDbDataSource.getCard(cardCode)
-
 
             imageCache[cardCode]?.let {
                 println("Retrieving card image for $cardCode from cache")

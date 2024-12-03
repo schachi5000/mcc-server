@@ -1,6 +1,7 @@
 package pro.schacher.mcc.server.plugins
 
 import io.ktor.http.HttpStatusCode
+import io.ktor.http.HttpStatusCode.Companion.InternalServerError
 import io.ktor.server.application.Application
 import io.ktor.server.response.respond
 import io.ktor.server.routing.RoutingCall
@@ -26,11 +27,11 @@ suspend fun runAndHandleErrors(call: RoutingCall, block: suspend (RoutingCall) -
     try {
         block(call)
     } catch (e: RemoteServiceException) {
-        call.respond(e.statusCode, ErrorResponseDto(e.statusCode, e.message.toString()))
+        call.respond(e.statusCode, ErrorResponseDto(e.statusCode, e.message))
     } catch (e: Exception) {
         call.respond(
-            HttpStatusCode.InternalServerError,
-            ErrorResponseDto(HttpStatusCode.InternalServerError, e.message.toString())
+            InternalServerError,
+            ErrorResponseDto(InternalServerError, e.message)
         )
     }
 }

@@ -1,18 +1,13 @@
 package pro.schacher.mcc.server.dto
 
-import io.ktor.http.*
+import io.ktor.http.HttpStatusCode
 import kotlinx.serialization.Serializable
 
 @Serializable
 data class ErrorResponseDto(
     val error: String,
-    val code: Int,
-    val message: String
+    val message: String? = null
 ) {
-    constructor(httpStatusCode: HttpStatusCode, message: String) :
-            this(
-                httpStatusCode.description,
-                httpStatusCode.value,
-                message
-            )
+    constructor(httpStatusCode: HttpStatusCode, message: String? = null) :
+            this(httpStatusCode.description, message)
 }

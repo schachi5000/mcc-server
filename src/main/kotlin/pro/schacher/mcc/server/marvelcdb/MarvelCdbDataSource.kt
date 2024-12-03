@@ -4,6 +4,7 @@ import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.engine.cio.CIO
 import io.ktor.client.plugins.HttpRequestRetry
+import io.ktor.client.plugins.HttpResponseValidator
 import io.ktor.client.plugins.cache.HttpCache
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.logging.LogLevel
@@ -21,9 +22,7 @@ import io.ktor.http.HttpHeaders.Authorization
 import io.ktor.http.HttpHeaders.CacheControl
 import io.ktor.http.HttpStatusCode
 import io.ktor.serialization.kotlinx.json.json
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.withContext
@@ -37,20 +36,14 @@ import kotlinx.serialization.json.jsonPrimitive
 import pro.schacher.mcc.server.dto.CardDto
 import pro.schacher.mcc.server.dto.CreateDeckResponseDto
 import pro.schacher.mcc.server.dto.DeckDto
-import pro.schacher.mcc.server.dto.DeckUpdateResponseDto
 import pro.schacher.mcc.server.dto.PackDto
 import kotlin.collections.set
 
-class MarvelCDbDataSource(
-    private val serviceUrl: String,
-    private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
-) {
+class MarvelCDbDataSource(private val serviceUrl: String) {
 
     private val httpClient = HttpClient(CIO) {
         followRedirects = true
-        install(HttpCache) {
-
-        }
+        install(HttpCache) {}
         install(ContentNegotiation) {
             json(Json {
                 ignoreUnknownKeys = true
@@ -68,6 +61,18 @@ class MarvelCDbDataSource(
         install(HttpRequestRetry) {
             retryOnServerErrors(maxRetries = 2)
             exponentialDelay()
+        }
+
+        HttpResponseValidator {
+            validateResponse { response ->
+                when (response.status) {
+                    HttpStatusCode.OK -> return@validateResponse
+                    HttpStatusCode.Unauthorized -> throw AuthorizationException()
+                    else -> throw RemoteServiceException(
+                        response.status
+                    )
+                }
+            }
         }
     }
 
@@ -125,15 +130,14 @@ class MarvelCDbDataSource(
     }
 
     suspend fun getCardImage(cardCode: String): Result<ByteArray> = runCatching {
-        val response = httpClient.get("$serviceUrl/bundles/cards/${cardCode}.png")
-        if (response.status != HttpStatusCode.OK) {
-            throw throw RemoteServiceException(
-                response.status,
+        try {
+            httpClient.get("$serviceUrl/bundles/cards/${cardCode}.png").bodyAsBytes()
+        } catch (e: Exception) {
+            throw RemoteServiceException(
+                HttpStatusCode.NotFound,
                 "Could not load image for $cardCode"
             )
         }
-
-        response.bodyAsBytes()
     }
 
     suspend fun getDeck(deckId: String, authToken: String): DeckDto = withContext(Dispatchers.IO) {
@@ -142,7 +146,6 @@ class MarvelCDbDataSource(
                 append(Authorization, authToken)
                 append(CacheControl, "no-store")
             }
-
         }
             .validateStatus()
             .body<MarvelCdbDeck>()
@@ -172,19 +175,18 @@ class MarvelCDbDataSource(
                 .also {
                     println(it.bodyAsText())
                 }
-                .body<MarvelCdbCreateDeckResponse>()
+                .body<MarvelCdbResponse>()
                 .toCreateDeckResponseDto()
         }
 
-    suspend fun updateDeck(deckId: String, slots: String, authToken: String):
-            DeckUpdateResponseDto = withContext(Dispatchers.IO) {
-        httpClient.put("$serviceUrl/api/oauth2/deck/save/${deckId}") {
-            headers { append(Authorization, authToken) }
-            parameter("slots", slots)
+    suspend fun updateDeck(deckId: String, slots: String, authToken: String) =
+        withContext(Dispatchers.IO) {
+            httpClient.put("$serviceUrl/api/oauth2/deck/save/${deckId}") {
+                headers { append(Authorization, authToken) }
+                parameter("slots", slots)
+            }
+                .validateStatus()
         }
-            .validateStatus()
-            .body<DeckUpdateResponseDto>()
-    }
 }
 
 private suspend fun HttpResponse.validateStatus(): HttpResponse {
@@ -198,19 +200,23 @@ private suspend fun HttpResponse.validateStatus(): HttpResponse {
 class AuthorizationException() :
     RemoteServiceException(HttpStatusCode.Unauthorized, "Token invalid or expired")
 
-open class RemoteServiceException(val statusCode: HttpStatusCode, message: String) :
+open class RemoteServiceException(val statusCode: HttpStatusCode, message: String? = null) :
     IOException(message)
 
 @Serializable
-internal data class MarvelCdbCreateDeckResponse(
+internal data class MarvelCdbResponse(
     val success: Boolean,
     val msg: JsonElement?
 )
 
-private fun MarvelCdbCreateDeckResponse.toCreateDeckResponseDto() = CreateDeckResponseDto(
-    success = this.success,
-    deckId = runCatching { this.msg?.jsonPrimitive?.int }.getOrNull(),
-    error = this.msg?.toString()
+@Serializable
+internal data class MarvelCdbError(
+    val code: Int,
+    val message: String
+)
+
+private fun MarvelCdbResponse.toCreateDeckResponseDto() = CreateDeckResponseDto(
+    deckId = this.msg?.jsonPrimitive?.int!!,
 )
 
 @Serializable
@@ -258,7 +264,6 @@ private fun String.parseAspect(): String? = when {
     this.contains(PROTECTION) -> PROTECTION
     else -> null
 }
-
 
 private fun String.takeIfNotBlank(): String? = this.ifBlank { null }
 

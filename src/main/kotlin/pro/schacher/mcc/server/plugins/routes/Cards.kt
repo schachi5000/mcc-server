@@ -1,11 +1,11 @@
 package pro.schacher.mcc.server.plugins.routes
 
-import io.ktor.http.HttpStatusCode
 import io.ktor.server.response.respond
 import io.ktor.server.routing.Routing
 import io.ktor.server.routing.get
-import pro.schacher.mcc.server.dto.ErrorResponseDto
 import pro.schacher.mcc.server.marvelcdb.MarvelCDbDataSource
+import pro.schacher.mcc.server.plugins.getPathParameterOrThrow
+import pro.schacher.mcc.server.plugins.runAndHandleErrors
 import kotlin.collections.set
 
 private val imageCache = mutableMapOf<String, ByteArray>()
@@ -18,46 +18,28 @@ internal fun Routing.cards(marvelCDbDataSource: MarvelCDbDataSource) {
     }
 
     get("$PREFIX/{cardCode}") {
-        val cardCode = call.pathParameters["cardCode"]
-        if (cardCode == null) {
-            call.respond(
-                HttpStatusCode.BadRequest,
-                ErrorResponseDto(HttpStatusCode.BadRequest, "No card code")
-            )
-            return@get
+        runAndHandleErrors(call) {
+            val cardCode = call.getPathParameterOrThrow("cardCode")
+            val card = marvelCDbDataSource.getCard(cardCode)
+            call.respond(card)
         }
-
-        val card = marvelCDbDataSource.getCard(cardCode)
-        call.respond(card)
     }
 
     get("$PREFIX/{cardCode}/image") {
-        val cardCode = call.pathParameters["cardCode"]
-        if (cardCode == null) {
-            call.respond(
-                HttpStatusCode.BadRequest,
-                ErrorResponseDto(HttpStatusCode.BadRequest, "No card code")
-            )
-            return@get
-        }
+        runAndHandleErrors(call) {
+            val cardCode = call.getPathParameterOrThrow("cardCode")
+            val card = marvelCDbDataSource.getCard(cardCode)
 
-        imageCache[cardCode]?.let {
-            println("Retrieving card image for $cardCode from cache")
-            call.respond(it)
-            return@get
-        }
 
-        val result = marvelCDbDataSource.getCardImage(cardCode)
-        if (result.isFailure) {
-            val throwable = result.exceptionOrNull()!!
-            call.respond(
-                HttpStatusCode.InternalServerError,
-                ErrorResponseDto(HttpStatusCode.InternalServerError, throwable.message.toString())
-            )
-            return@get
-        }
+            imageCache[cardCode]?.let {
+                println("Retrieving card image for $cardCode from cache")
+                call.respond(it)
+                return@runAndHandleErrors
+            }
 
-        imageCache[cardCode] = result.getOrThrow()
-        call.respond(result.getOrThrow())
+            val result = marvelCDbDataSource.getCardImage(cardCode)
+            imageCache[cardCode] = result.getOrThrow()
+            call.respond(result.getOrThrow())
+        }
     }
 }

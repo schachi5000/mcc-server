@@ -61,33 +61,27 @@ fun Routing.decks(marvelCDbDataSource: MarvelCDbDataSource) {
                 .associate { it.code to it.deckLimit!! }
                 .let { Json.encodeToString(it) }
 
-            val result = marvelCDbDataSource.createDeck(
-                heroCard.code,
-                requestDto.deckName,
-                call.getBearerToken()
-            )
-
-            if (!result.success) {
-                throw RemoteServiceException(
-                    InternalServerError,
-                    result.error ?: "Failed to create deck"
+            val result = runCatching {
+                marvelCDbDataSource.createDeck(
+                    heroCard.code,
+                    requestDto.deckName,
+                    call.getBearerToken()
                 )
             }
 
-            val updateDeckResult = marvelCDbDataSource.updateDeck(
-                result.deckId.toString(),
+            val deckId = result.getOrNull()?.deckId
+                ?: throw RemoteServiceException(
+                    InternalServerError,
+                    result.exceptionOrNull()?.toString() ?: "Failed to create deck"
+                )
+
+            marvelCDbDataSource.updateDeck(
+                deckId.toString(),
                 slots,
                 it.getBearerToken()
             )
 
-            if (!updateDeckResult.success) {
-                throw RemoteServiceException(
-                    InternalServerError,
-                    result.error ?: "Failed to update deck with base cards"
-                )
-            }
-
-            it.respond(CreateDeckResponseDto(true, result.deckId))
+            it.respond(CreateDeckResponseDto(deckId))
         }
     }
 

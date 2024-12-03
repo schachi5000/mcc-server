@@ -44,7 +44,9 @@ class MarvelCDbDataSource(private val serviceUrl: String) {
 
     private val httpClient = HttpClient(CIO) {
         followRedirects = true
-        install(HttpCache) {}
+        install(HttpCache) {
+
+        }
         install(ContentNegotiation) {
             json(Json {
                 ignoreUnknownKeys = true
@@ -66,7 +68,7 @@ class MarvelCDbDataSource(private val serviceUrl: String) {
     }
 
     suspend fun getAllPacks(): List<PackDto> = withContext(Dispatchers.IO) {
-        httpClient.get("$serviceUrl/packs")
+        httpClient.get("$serviceUrl/api/public/packs")
             .body<List<PackDto>>()
     }
 
@@ -85,7 +87,7 @@ class MarvelCDbDataSource(private val serviceUrl: String) {
             return@withContext it
         }
 
-        httpClient.get("$serviceUrl/pack/$packCode")
+        httpClient.get("$serviceUrl/api/public/cards/$packCode")
             .body<List<MarvelCdbCard>>()
             .map { it.toCardDto() }
             .also {
@@ -94,13 +96,13 @@ class MarvelCDbDataSource(private val serviceUrl: String) {
     }
 
     suspend fun getCard(cardCode: String): CardDto = withContext(Dispatchers.IO) {
-        httpClient.get("$serviceUrl/card/$cardCode")
+        httpClient.get("$serviceUrl/api/public/card/$cardCode")
             .body<MarvelCdbCard>()
             .toCardDto()
     }
 
     suspend fun getSpotlightDecksByDate(date: String): List<DeckDto> = withContext(Dispatchers.IO) {
-        httpClient.get("$serviceUrl/spotlight/${date}") {
+        httpClient.get("$serviceUrl/api/public/decklists/by_date/${date}.json") {
             headers {
                 append(CacheControl, "no-store")
             }
@@ -110,7 +112,7 @@ class MarvelCDbDataSource(private val serviceUrl: String) {
     }
 
     suspend fun getCardImage(cardCode: String): Result<ByteArray> = runCatching {
-        val response = httpClient.get("$serviceUrl/image/$cardCode")
+        val response = httpClient.get("$serviceUrl/bundles/cards/${cardCode}.png")
         if (response.status != HttpStatusCode.OK) {
             throw throw RemoteServiceException(
                 response.status,
@@ -167,6 +169,7 @@ class MarvelCDbDataSource(private val serviceUrl: String) {
             .validateStatus()
             .body<DeckUpdateResponseDto>()
     }
+
 }
 
 private suspend fun HttpResponse.validateStatus(): HttpResponse {

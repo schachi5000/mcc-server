@@ -1,28 +1,30 @@
 package pro.schacher.mcc.server.plugins.routes
 
-import io.ktor.http.HttpStatusCode
 import io.ktor.server.response.respond
 import io.ktor.server.routing.Routing
 import io.ktor.server.routing.get
 import pro.schacher.mcc.server.marvelcdb.MarvelCDbDataSource
+import pro.schacher.mcc.server.plugins.getAcceptLocaleOrDefault
+import pro.schacher.mcc.server.plugins.getPathParameterOrThrow
+import pro.schacher.mcc.server.plugins.runAndHandleErrors
 
 private const val PREFIX = "/api/v1/packs"
 
 internal fun Routing.packs(marvelCDbDataSource: MarvelCDbDataSource) {
     get(PREFIX) {
-        val allPacks = marvelCDbDataSource.getAllPacks().getOrThrow()
-        call.respond(allPacks)
+        runAndHandleErrors(call) {
+            val allPacks = marvelCDbDataSource.getAllPacks().getOrThrow()
+            call.respond(allPacks)
+        }
     }
 
     get("$PREFIX/{packCode?}") {
-        val packCode = call.pathParameters["packCode"]
-        if (packCode == null) {
-            call.respond(HttpStatusCode.BadRequest, "No pack found")
-            return@get
+        runAndHandleErrors(call) {
+            val local = call.getAcceptLocaleOrDefault()
+            val packCode = call.getPathParameterOrThrow("packCode")
+            val allPacks = marvelCDbDataSource.getCardsInPack(local, packCode).getOrThrow()
+            call.respond(allPacks)
         }
-
-        val allPacks = marvelCDbDataSource.getCardsInPack(packCode).getOrThrow()
-        call.respond(allPacks)
     }
 }
 

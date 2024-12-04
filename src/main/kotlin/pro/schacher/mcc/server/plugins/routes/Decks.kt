@@ -16,6 +16,7 @@ import pro.schacher.mcc.server.dto.CreateDeckRequestDto
 import pro.schacher.mcc.server.dto.CreateDeckResponseDto
 import pro.schacher.mcc.server.marvelcdb.MarvelCDbDataSource
 import pro.schacher.mcc.server.marvelcdb.RemoteServiceException
+import pro.schacher.mcc.server.plugins.getAcceptLocaleOrDefault
 import pro.schacher.mcc.server.plugins.getPathParameterOrThrow
 import pro.schacher.mcc.server.plugins.getQueryParameterOrThrow
 import pro.schacher.mcc.server.plugins.runAndHandleErrors
@@ -59,10 +60,12 @@ fun Routing.decks(marvelCDbDataSource: MarvelCDbDataSource) {
 
     post(PREFIX) {
         runAndHandleErrors(call) {
+            val locale = call.getAcceptLocaleOrDefault()
             val requestDto = call.receive(CreateDeckRequestDto::class)
 
-            val heroCard = marvelCDbDataSource.getCard(requestDto.heroCardCode).getOrThrow()
-            val heroCards = marvelCDbDataSource.getCards(heroCard.cardSetCode!!).getOrThrow()
+            val heroCard = marvelCDbDataSource.getCard(locale, requestDto.heroCardCode).getOrThrow()
+            val heroCards =
+                marvelCDbDataSource.getCards(locale, heroCard.cardSetCode!!).getOrThrow()
 
             val slots = heroCards
                 .filter { it.deckLimit != null }

@@ -2,14 +2,6 @@ package pro.schacher.mcc.server.marvelcdb
 
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
-import io.ktor.client.engine.cio.CIO
-import io.ktor.client.plugins.HttpRequestRetry
-import io.ktor.client.plugins.HttpResponseValidator
-import io.ktor.client.plugins.cache.HttpCache
-import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
-import io.ktor.client.plugins.logging.LogLevel
-import io.ktor.client.plugins.logging.Logger
-import io.ktor.client.plugins.logging.Logging
 import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.headers
@@ -20,7 +12,6 @@ import io.ktor.client.statement.bodyAsBytes
 import io.ktor.http.HttpHeaders.Authorization
 import io.ktor.http.HttpHeaders.CacheControl
 import io.ktor.http.HttpStatusCode
-import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -28,7 +19,6 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.withContext
 import kotlinx.io.IOException
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonObject
@@ -36,91 +26,53 @@ import kotlinx.serialization.json.jsonPrimitive
 import pro.schacher.mcc.server.dto.CardDto
 import pro.schacher.mcc.server.dto.DeckDto
 import pro.schacher.mcc.server.dto.PackDto
-import kotlin.collections.set
+import java.util.Locale
 import kotlin.coroutines.CoroutineContext
 
-class MarvelCDbDataSource(private val serviceUrl: String) {
+class MarvelCDbDataSource(
+    private val urlProvider: UrlProvider,
+    private val httpClient : HttpClient
+) {
 
-    private val httpClient = HttpClient(CIO) {
-        followRedirects = true
-        install(HttpCache) {}
-        install(ContentNegotiation) {
-            json(Json {
-                ignoreUnknownKeys = true
-                explicitNulls = false
-            })
-        }
-        install(Logging) {
-            logger = object : Logger {
-                override fun log(message: String) {
-                    println(message)
-                }
-            }
-            level = LogLevel.INFO
-        }
-        install(HttpRequestRetry) {
-            retryOnServerErrors(maxRetries = 2)
-            exponentialDelay()
-        }
+    private val defaultUrl get() = this.urlProvider.getUrl()
 
-        HttpResponseValidator {
-            validateResponse { response ->
-                when (response.status) {
-                    HttpStatusCode.OK -> return@validateResponse
-                    HttpStatusCode.Unauthorized -> throw AuthorizationException()
-                    else -> throw RemoteServiceException(
-                        statusCode = response.status,
-                        message = "Remote service returned status code ${response.status}"
-                    )
-                }
-            }
-        }
-    }
-
-    private val allCardsCache = mutableMapOf<String, List<CardDto>>()
-
-    suspend fun getAllCards() = withContextSafe {
+    suspend fun getAllCards(locale: Locale) = withContextSafe {
         val allPacks = getAllPacks().getOrThrow()
 
         return@withContextSafe allPacks.map {
             async {
-                getCardsInPack(it.code).getOrThrow()
+                getCardsInPack(locale, it.code).getOrThrow()
             }
         }.awaitAll().flatten()
     }
 
     suspend fun getAllPacks() = withContextSafe {
-        httpClient.get("$serviceUrl/api/public/packs")
+        httpClient.get("$defaultUrl/api/public/packs")
             .body<List<PackDto>>()
     }
 
-    suspend fun getCardsInPack(packCode: String) = withContextSafe {
-        allCardsCache[packCode]?.let {
-            return@withContextSafe it
-        }
-
-        httpClient.get("$serviceUrl/api/public/cards/$packCode")
+    suspend fun getCardsInPack(locale: Locale, packCode: String) = withContextSafe {
+        val url = urlProvider.getUrl(locale)
+        httpClient.get("${url}/api/public/cards/$packCode")
             .body<List<MarvelCdbCard>>()
             .map { it.toCardDto() }
-            .also {
-                allCardsCache[packCode] = it
-            }
     }
 
-    suspend fun getCards(cardSetCode: String) = withContextSafe {
-        getAllCards().getOrThrow()
+    suspend fun getCards(locale: Locale, cardSetCode: String) = withContextSafe {
+        getAllCards(locale).getOrThrow()
             .distinct()
             .filter { it.cardSetCode == cardSetCode }
     }
 
-    suspend fun getCard(cardCode: String) = withContextSafe {
-        httpClient.get("$serviceUrl/api/public/card/$cardCode")
+    suspend fun getCard(locale: Locale, cardCode: String) = withContextSafe {
+        val url = urlProvider.getUrl(locale)
+        httpClient.get("${url}/api/public/card/$cardCode")
             .body<MarvelCdbCard>()
             .toCardDto()
     }
 
     suspend fun getSpotlightDecksByDate(date: String) = withContextSafe {
-        httpClient.get("$serviceUrl/api/public/decklists/by_date/${date}.json") {
+        httpClient.get("$defaultUrl/api/public/decklists/by_date/${date}.json") {
             headers {
                 append(CacheControl, "no-store")
             }
@@ -130,11 +82,11 @@ class MarvelCDbDataSource(private val serviceUrl: String) {
     }
 
     suspend fun getCardImage(cardCode: String) = withContextSafe() {
-        httpClient.get("$serviceUrl/bundles/cards/${cardCode}.png").bodyAsBytes()
+        httpClient.get("$defaultUrl/bundles/cards/${cardCode}.png").bodyAsBytes()
     }
 
     suspend fun getDeck(deckId: String, bearerToken: String) = withContextSafe {
-        httpClient.get("$serviceUrl/api/oauth2/deck/load/$deckId") {
+        httpClient.get("$defaultUrl/api/oauth2/deck/load/$deckId") {
             headers {
                 append(Authorization, bearerToken)
                 append(CacheControl, "no-store")
@@ -145,7 +97,7 @@ class MarvelCDbDataSource(private val serviceUrl: String) {
     }
 
     suspend fun getAllUserDecks(bearerToken: String) = withContextSafe {
-        httpClient.get("$serviceUrl/api/oauth2/decks") {
+        httpClient.get("$defaultUrl/api/oauth2/decks") {
             headers {
                 append(Authorization, bearerToken)
                 append(CacheControl, "no-store")
@@ -157,7 +109,7 @@ class MarvelCDbDataSource(private val serviceUrl: String) {
 
     suspend fun createDeck(heroCardCode: String, deckName: String?, bearerToken: String) =
         withContextSafe {
-            httpClient.post("$serviceUrl/api/oauth2/deck/new") {
+            httpClient.post("$defaultUrl/api/oauth2/deck/new") {
                 headers { append(Authorization, bearerToken) }
                 parameter("investigator", heroCardCode)
                 parameter("name", deckName)
@@ -168,16 +120,16 @@ class MarvelCDbDataSource(private val serviceUrl: String) {
 
     suspend fun updateDeck(deckId: String, slots: String, bearerToken: String) =
         withContextSafe {
-            httpClient.put("$serviceUrl/api/oauth2/deck/save/${deckId}") {
+            httpClient.put("$defaultUrl/api/oauth2/deck/save/${deckId}") {
                 headers { append(Authorization, bearerToken) }
                 parameter("slots", slots)
             }
             Unit
         }
 
-    suspend fun deleteDeck(deckId: String, bearerToken: String)=
+    suspend fun deleteDeck(deckId: String, bearerToken: String) =
         withContextSafe {
-            httpClient.delete("$serviceUrl/api/oauth2/deck/delete/${deckId}") {
+            httpClient.delete("$defaultUrl/api/oauth2/deck/delete/${deckId}") {
                 headers { append(Authorization, bearerToken) }
             }
             Unit

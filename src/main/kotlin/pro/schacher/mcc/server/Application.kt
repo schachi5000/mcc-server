@@ -8,9 +8,9 @@ import io.ktor.server.netty.Netty
 import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
 import kotlinx.serialization.json.Json
 import pro.schacher.mcc.server.marvelcdb.MarvelCDbDataSource
+import pro.schacher.mcc.server.marvelcdb.UrlProvider
 import pro.schacher.mcc.server.plugins.configureRouting
 
-private const val SERVICE_URL = "https://de.marvelcdb.com"
 
 fun main(args: Array<String>) {
     println("Starting Server")
@@ -29,5 +29,5 @@ fun Application.module() {
             explicitNulls = false
         })
     }
-    configureRouting(MarvelCDbDataSource(SERVICE_URL))
+    configureRouting(MarvelCDbDataSource(UrlProvider()))
 }

@@ -13,6 +13,7 @@ import pro.schacher.mcc.server.plugins.routes.cards
 import pro.schacher.mcc.server.plugins.routes.decks
 import pro.schacher.mcc.server.plugins.routes.health
 import pro.schacher.mcc.server.plugins.routes.packs
+import java.util.Locale
 
 fun Application.configureRouting(marvelCDbDataSource: MarvelCDbDataSource) {
     routing {
@@ -33,6 +34,14 @@ suspend fun runAndHandleErrors(call: RoutingCall, block: suspend () -> Unit) {
             InternalServerError,
             ErrorResponseDto(InternalServerError.description, e.message)
         )
+    }
+}
+
+fun RoutingCall.getAcceptLocaleOrDefault(): Locale = this.request.headers["Accept-Language"].let {
+    when {
+        it == null -> Locale.ENGLISH
+        it.contains("de", ignoreCase = true) -> Locale.GERMAN
+        else -> Locale.ENGLISH
     }
 }
 

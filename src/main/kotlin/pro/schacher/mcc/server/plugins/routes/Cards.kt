@@ -4,6 +4,7 @@ import io.ktor.server.response.respond
 import io.ktor.server.routing.Routing
 import io.ktor.server.routing.get
 import pro.schacher.mcc.server.marvelcdb.MarvelCDbDataSource
+import pro.schacher.mcc.server.plugins.getAcceptLocaleOrDefault
 import pro.schacher.mcc.server.plugins.getPathParameterOrThrow
 import pro.schacher.mcc.server.plugins.runAndHandleErrors
 import kotlin.collections.set
@@ -15,15 +16,17 @@ private const val PREFIX = "/api/v1/cards"
 internal fun Routing.cards(marvelCDbDataSource: MarvelCDbDataSource) {
     get(PREFIX) {
         runAndHandleErrors(call) {
-            val cards = marvelCDbDataSource.getAllCards().getOrThrow()
+            val local = call.getAcceptLocaleOrDefault()
+            val cards = marvelCDbDataSource.getAllCards(local).getOrThrow()
             call.respond(cards)
         }
     }
 
     get("$PREFIX/{cardCode}") {
         runAndHandleErrors(call) {
+            val locale = call.getAcceptLocaleOrDefault()
             val cardCode = call.getPathParameterOrThrow("cardCode")
-            val card = marvelCDbDataSource.getCard(cardCode).getOrThrow()
+            val card = marvelCDbDataSource.getCard(locale, cardCode).getOrThrow()
 
             call.respond(card)
         }

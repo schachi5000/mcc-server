@@ -1,6 +1,7 @@
 package pro.schacher.mcc.server.plugins
 
 import io.ktor.http.HttpStatusCode
+import io.ktor.http.HttpStatusCode.Companion.InternalServerError
 import io.ktor.server.application.Application
 import io.ktor.server.response.respond
 import io.ktor.server.routing.RoutingCall
@@ -22,32 +23,25 @@ fun Application.configureRouting(marvelCDbDataSource: MarvelCDbDataSource) {
     }
 }
 
-suspend fun runAndHandleErrors(call: RoutingCall, block: suspend (RoutingCall) -> Unit) {
+suspend fun runAndHandleErrors(call: RoutingCall, block: suspend () -> Unit) {
     try {
-        block(call)
+        block()
     } catch (e: RemoteServiceException) {
-        call.respond(e.statusCode, ErrorResponseDto(e.statusCode, e.message.toString()))
+        call.respond(e.statusCode, ErrorResponseDto(e.error, e.message))
     } catch (e: Exception) {
         call.respond(
-            HttpStatusCode.BadRequest,
-            ErrorResponseDto(HttpStatusCode.BadRequest, e.message.toString())
+            InternalServerError,
+            ErrorResponseDto(InternalServerError.description, e.message)
         )
     }
 }
 
-fun RoutingCall.getPathParameterOrThrow(parameter: String): String {
-    return this.pathParameters[parameter] ?: throw RemoteServiceException(
-        HttpStatusCode.BadRequest,
-        "Parameter [$parameter] missing"
-    )
-}
+fun RoutingCall.getPathParameterOrThrow(parameter: String) = this.pathParameters[parameter]
+    ?: throw RemoteServiceException(HttpStatusCode.BadRequest, "Parameter [$parameter] missing")
 
-fun RoutingCall.getQueryParameterOrThrow(parameter: String): String {
-    return this.request.queryParameters[parameter] ?: throw RemoteServiceException(
-        HttpStatusCode.BadRequest,
-        "Parameter [$parameter] missing"
-    )
-}
+fun RoutingCall.getQueryParameterOrThrow(parameter: String) =
+    this.request.queryParameters[parameter]
+        ?: throw RemoteServiceException(HttpStatusCode.BadRequest, "Parameter [$parameter] missing")
 
 
 

@@ -10,7 +10,7 @@ private const val PREFIX = "/api/v1/packs"
 
 internal fun Routing.packs(marvelCDbDataSource: MarvelCDbDataSource) {
     get(PREFIX) {
-        val allPacks = marvelCDbDataSource.getAllPacks()
+        val allPacks = marvelCDbDataSource.getAllPacks().getOrThrow()
         call.respond(allPacks)
     }
 
@@ -21,7 +21,7 @@ internal fun Routing.packs(marvelCDbDataSource: MarvelCDbDataSource) {
             return@get
         }
 
-        val allPacks = marvelCDbDataSource.getCardsInPack(packCode)
+        val allPacks = marvelCDbDataSource.getCardsInPack(packCode).getOrThrow()
         call.respond(allPacks)
     }
 }

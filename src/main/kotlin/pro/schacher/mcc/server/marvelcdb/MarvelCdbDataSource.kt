@@ -4,23 +4,24 @@ import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.engine.cio.CIO
 import io.ktor.client.plugins.HttpRequestRetry
+import io.ktor.client.plugins.HttpResponseValidator
 import io.ktor.client.plugins.cache.HttpCache
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.logging.LogLevel
 import io.ktor.client.plugins.logging.Logger
 import io.ktor.client.plugins.logging.Logging
+import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.headers
 import io.ktor.client.request.parameter
 import io.ktor.client.request.post
 import io.ktor.client.request.put
-import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsBytes
-import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpHeaders.Authorization
 import io.ktor.http.HttpHeaders.CacheControl
 import io.ktor.http.HttpStatusCode
 import io.ktor.serialization.kotlinx.json.json
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -33,20 +34,16 @@ import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import pro.schacher.mcc.server.dto.CardDto
-import pro.schacher.mcc.server.dto.CreateDeckResponseDto
 import pro.schacher.mcc.server.dto.DeckDto
-import pro.schacher.mcc.server.dto.DeckUpdateResponseDto
 import pro.schacher.mcc.server.dto.PackDto
 import kotlin.collections.set
+import kotlin.coroutines.CoroutineContext
 
 class MarvelCDbDataSource(private val serviceUrl: String) {
-    private val allCardsCache = mutableMapOf<String, List<CardDto>>()
 
     private val httpClient = HttpClient(CIO) {
         followRedirects = true
-        install(HttpCache) {
-
-        }
+        install(HttpCache) {}
         install(ContentNegotiation) {
             json(Json {
                 ignoreUnknownKeys = true
@@ -65,26 +62,41 @@ class MarvelCDbDataSource(private val serviceUrl: String) {
             retryOnServerErrors(maxRetries = 2)
             exponentialDelay()
         }
+
+        HttpResponseValidator {
+            validateResponse { response ->
+                when (response.status) {
+                    HttpStatusCode.OK -> return@validateResponse
+                    HttpStatusCode.Unauthorized -> throw AuthorizationException()
+                    else -> throw RemoteServiceException(
+                        statusCode = response.status,
+                        message = "Remote service returned status code ${response.status}"
+                    )
+                }
+            }
+        }
     }
 
-    suspend fun getAllPacks(): List<PackDto> = withContext(Dispatchers.IO) {
-        httpClient.get("$serviceUrl/api/public/packs")
-            .body<List<PackDto>>()
-    }
+    private val allCardsCache = mutableMapOf<String, List<CardDto>>()
 
-    suspend fun getAllCards(): List<CardDto> = withContext(Dispatchers.IO) {
-        val allPacks = getAllPacks()
+    suspend fun getAllCards() = withContextSafe {
+        val allPacks = getAllPacks().getOrThrow()
 
-        return@withContext allPacks.map {
+        return@withContextSafe allPacks.map {
             async {
-                getCardsInPack(it.code)
+                getCardsInPack(it.code).getOrThrow()
             }
         }.awaitAll().flatten()
     }
 
-    suspend fun getCardsInPack(packCode: String): List<CardDto> = withContext(Dispatchers.IO) {
+    suspend fun getAllPacks() = withContextSafe {
+        httpClient.get("$serviceUrl/api/public/packs")
+            .body<List<PackDto>>()
+    }
+
+    suspend fun getCardsInPack(packCode: String) = withContextSafe {
         allCardsCache[packCode]?.let {
-            return@withContext it
+            return@withContextSafe it
         }
 
         httpClient.get("$serviceUrl/api/public/cards/$packCode")
@@ -95,13 +107,19 @@ class MarvelCDbDataSource(private val serviceUrl: String) {
             }
     }
 
-    suspend fun getCard(cardCode: String): CardDto = withContext(Dispatchers.IO) {
+    suspend fun getCards(cardSetCode: String) = withContextSafe {
+        getAllCards().getOrThrow()
+            .distinct()
+            .filter { it.cardSetCode == cardSetCode }
+    }
+
+    suspend fun getCard(cardCode: String) = withContextSafe {
         httpClient.get("$serviceUrl/api/public/card/$cardCode")
             .body<MarvelCdbCard>()
             .toCardDto()
     }
 
-    suspend fun getSpotlightDecksByDate(date: String): List<DeckDto> = withContext(Dispatchers.IO) {
+    suspend fun getSpotlightDecksByDate(date: String) = withContextSafe {
         httpClient.get("$serviceUrl/api/public/decklists/by_date/${date}.json") {
             headers {
                 append(CacheControl, "no-store")
@@ -111,83 +129,94 @@ class MarvelCDbDataSource(private val serviceUrl: String) {
             .map { it.toDeckDto() }
     }
 
-    suspend fun getCardImage(cardCode: String): Result<ByteArray> = runCatching {
-        val response = httpClient.get("$serviceUrl/bundles/cards/${cardCode}.png")
-        if (response.status != HttpStatusCode.OK) {
-            throw throw RemoteServiceException(
-                response.status,
-                "Could not load image for $cardCode"
-            )
-        }
-
-        response.bodyAsBytes()
+    suspend fun getCardImage(cardCode: String) = withContextSafe() {
+        httpClient.get("$serviceUrl/bundles/cards/${cardCode}.png").bodyAsBytes()
     }
 
-    suspend fun getDeck(deckId: String, authToken: String): DeckDto = withContext(Dispatchers.IO) {
+    suspend fun getDeck(deckId: String, bearerToken: String) = withContextSafe {
         httpClient.get("$serviceUrl/api/oauth2/deck/load/$deckId") {
             headers {
-                append(Authorization, authToken)
+                append(Authorization, bearerToken)
                 append(CacheControl, "no-store")
             }
-
         }
-            .validateStatus()
             .body<MarvelCdbDeck>()
             .toDeckDto()
     }
 
-    suspend fun getAllUserDecks(authToken: String): List<DeckDto> = withContext(Dispatchers.IO) {
+    suspend fun getAllUserDecks(bearerToken: String) = withContextSafe {
         httpClient.get("$serviceUrl/api/oauth2/decks") {
             headers {
-                append(Authorization, authToken)
+                append(Authorization, bearerToken)
                 append(CacheControl, "no-store")
             }
-
         }
-            .validateStatus()
             .body<List<MarvelCdbDeck>>()
             .map { it.toDeckDto() }
     }
 
-    suspend fun createDeck(heroCardCode: String, deckName: String?, authToken: String) =
-        withContext(Dispatchers.IO) {
+    suspend fun createDeck(heroCardCode: String, deckName: String?, bearerToken: String) =
+        withContextSafe {
             httpClient.post("$serviceUrl/api/oauth2/deck/new") {
-                headers { append(Authorization, authToken) }
+                headers { append(Authorization, bearerToken) }
                 parameter("investigator", heroCardCode)
                 parameter("name", deckName)
             }
-                .validateStatus()
-                .body<CreateDeckResponseDto>()
+                .body<MarvelCdbResponse>()
+                .msg?.jsonPrimitive?.int ?: throw Exception("Deck creation failed")
         }
 
-    suspend fun updateDeck(deckId: String, slots: String, authToken: String):
-            DeckUpdateResponseDto = withContext(Dispatchers.IO) {
-        httpClient.put("$serviceUrl/api/oauth2/deck/save/${deckId}") {
-            headers { append(Authorization, authToken) }
-            parameter("slots", slots)
+    suspend fun updateDeck(deckId: String, slots: String, bearerToken: String) =
+        withContextSafe {
+            httpClient.put("$serviceUrl/api/oauth2/deck/save/${deckId}") {
+                headers { append(Authorization, bearerToken) }
+                parameter("slots", slots)
+            }
+            Unit
         }
-            .validateStatus()
-            .body<DeckUpdateResponseDto>()
-    }
 
+    suspend fun deleteDeck(deckId: String, bearerToken: String)=
+        withContextSafe {
+            httpClient.delete("$serviceUrl/api/oauth2/deck/delete/${deckId}") {
+                headers { append(Authorization, bearerToken) }
+            }
+            Unit
+        }
 }
 
-private suspend fun HttpResponse.validateStatus(): HttpResponse {
-    when (this.status) {
-        HttpStatusCode.OK -> return this
-        HttpStatusCode.Unauthorized -> throw AuthorizationException()
-        else -> throw RemoteServiceException(this.status, this.bodyAsText())
+private suspend fun <T> withContextSafe(
+    context: CoroutineContext = Dispatchers.IO,
+    block: suspend CoroutineScope.() -> T
+): Result<T> = withContext(context) {
+    runCatching<T> {
+        block()
     }
 }
 
 class AuthorizationException() :
     RemoteServiceException(HttpStatusCode.Unauthorized, "Token invalid or expired")
 
-open class RemoteServiceException(val statusCode: HttpStatusCode, message: String) :
-    IOException(message)
+open class RemoteServiceException(
+    val statusCode: HttpStatusCode = HttpStatusCode.InternalServerError,
+    message: String? = null,
+) : IOException(message) {
+    val error: String = "Remote Service Error"
+}
 
 @Serializable
-internal data class MarvelCdbDeck(
+internal data class MarvelCdbResponse(
+    val success: Boolean,
+    val msg: JsonElement?
+)
+
+@Serializable
+internal data class MarvelCdbError(
+    val code: Int,
+    val message: String
+)
+
+@Serializable
+private data class MarvelCdbDeck(
     val date_creation: String,
     val date_update: String,
     val description_md: String?,
@@ -203,7 +232,7 @@ internal data class MarvelCdbDeck(
     val problem: String?
 )
 
-internal fun MarvelCdbDeck.toDeckDto(): DeckDto = DeckDto(
+private fun MarvelCdbDeck.toDeckDto(): DeckDto = DeckDto(
     createdOn = this.date_creation,
     updatedOn = this.date_update,
     description = this.description_md?.takeIfNotBlank(),
@@ -211,7 +240,7 @@ internal fun MarvelCdbDeck.toDeckDto(): DeckDto = DeckDto(
     heroCode = this.investigator_code,
     heroName = this.investigator_name,
     name = this.name,
-    slots = this.slots?.toMap(),
+    slots = runCatching { this.slots?.toMap() }.getOrNull(),
     tags = this.tags?.takeIfNotBlank(),
     userId = this.user_id,
     version = this.version,
@@ -232,20 +261,15 @@ private fun String.parseAspect(): String? = when {
     else -> null
 }
 
-
 private fun String.takeIfNotBlank(): String? = this.ifBlank { null }
 
-private fun JsonElement.toMap(): Map<String, Int>? = try {
-    this.jsonObject.map { (key, value) ->
-        key to value.jsonPrimitive.int
-    }.toMap()
-} catch (e: Exception) {
-    println("Could not convert map for $this")
-    null
-}
+private fun JsonElement.toMap(): Map<String, Int>? = this.jsonObject
+    .mapNotNull { (key, value) -> key to value.jsonPrimitive.int }
+    .toMap()
+    .takeIf { it.isNotEmpty() }
 
 @Serializable
-internal data class MarvelCdbCard(
+private data class MarvelCdbCard(
     val attack: Int?,
     val base_threat_fixed: Boolean,
     val card_set_code: String?,
@@ -297,7 +321,7 @@ internal data class MarvelCdbCard(
     )
 }
 
-internal fun MarvelCdbCard.toCardDto(): CardDto = CardDto(
+private fun MarvelCdbCard.toCardDto(): CardDto = CardDto(
     attack = this.attack,
     baseThreatFixed = this.base_threat_fixed,
     cardSetCode = this.card_set_code,

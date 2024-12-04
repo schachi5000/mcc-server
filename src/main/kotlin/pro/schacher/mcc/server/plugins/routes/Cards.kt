@@ -14,13 +14,17 @@ private const val PREFIX = "/api/v1/cards"
 
 internal fun Routing.cards(marvelCDbDataSource: MarvelCDbDataSource) {
     get(PREFIX) {
-        call.respond(marvelCDbDataSource.getAllCards())
+        runAndHandleErrors(call) {
+            val cards = marvelCDbDataSource.getAllCards().getOrThrow()
+            call.respond(cards)
+        }
     }
 
     get("$PREFIX/{cardCode}") {
         runAndHandleErrors(call) {
             val cardCode = call.getPathParameterOrThrow("cardCode")
-            val card = marvelCDbDataSource.getCard(cardCode)
+            val card = marvelCDbDataSource.getCard(cardCode).getOrThrow()
+
             call.respond(card)
         }
     }
@@ -35,9 +39,9 @@ internal fun Routing.cards(marvelCDbDataSource: MarvelCDbDataSource) {
                 return@runAndHandleErrors
             }
 
-            val result = marvelCDbDataSource.getCardImage(cardCode)
-            imageCache[cardCode] = result.getOrThrow()
-            call.respond(result.getOrThrow())
+            val image = marvelCDbDataSource.getCardImage(cardCode).getOrThrow()
+            imageCache[cardCode] = image
+            call.respond(image)
         }
     }
 }

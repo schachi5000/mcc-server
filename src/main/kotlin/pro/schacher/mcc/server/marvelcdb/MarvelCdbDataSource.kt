@@ -10,6 +10,7 @@ import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.logging.LogLevel
 import io.ktor.client.plugins.logging.Logger
 import io.ktor.client.plugins.logging.Logging
+import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.headers
 import io.ktor.client.request.parameter
@@ -20,6 +21,7 @@ import io.ktor.http.HttpHeaders.Authorization
 import io.ktor.http.HttpHeaders.CacheControl
 import io.ktor.http.HttpStatusCode
 import io.ktor.serialization.kotlinx.json.json
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -32,10 +34,10 @@ import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import pro.schacher.mcc.server.dto.CardDto
-import pro.schacher.mcc.server.dto.CreateDeckResponseDto
 import pro.schacher.mcc.server.dto.DeckDto
 import pro.schacher.mcc.server.dto.PackDto
 import kotlin.collections.set
+import kotlin.coroutines.CoroutineContext
 
 class MarvelCDbDataSource(private val serviceUrl: String) {
 
@@ -66,7 +68,10 @@ class MarvelCDbDataSource(private val serviceUrl: String) {
                 when (response.status) {
                     HttpStatusCode.OK -> return@validateResponse
                     HttpStatusCode.Unauthorized -> throw AuthorizationException()
-                    else -> throw RemoteServiceException(response.status)
+                    else -> throw RemoteServiceException(
+                        statusCode = response.status,
+                        message = "Remote service returned status code ${response.status}"
+                    )
                 }
             }
         }
@@ -74,24 +79,24 @@ class MarvelCDbDataSource(private val serviceUrl: String) {
 
     private val allCardsCache = mutableMapOf<String, List<CardDto>>()
 
-    suspend fun getAllCards(): List<CardDto> = withContext(Dispatchers.IO) {
-        val allPacks = getAllPacks()
+    suspend fun getAllCards() = withContextSafe {
+        val allPacks = getAllPacks().getOrThrow()
 
-        return@withContext allPacks.map {
+        return@withContextSafe allPacks.map {
             async {
-                getCardsInPack(it.code)
+                getCardsInPack(it.code).getOrThrow()
             }
         }.awaitAll().flatten()
     }
 
-    suspend fun getAllPacks(): List<PackDto> = withContext(Dispatchers.IO) {
+    suspend fun getAllPacks() = withContextSafe {
         httpClient.get("$serviceUrl/api/public/packs")
             .body<List<PackDto>>()
     }
 
-    suspend fun getCardsInPack(packCode: String): List<CardDto> = withContext(Dispatchers.IO) {
+    suspend fun getCardsInPack(packCode: String) = withContextSafe {
         allCardsCache[packCode]?.let {
-            return@withContext it
+            return@withContextSafe it
         }
 
         httpClient.get("$serviceUrl/api/public/cards/$packCode")
@@ -102,19 +107,19 @@ class MarvelCDbDataSource(private val serviceUrl: String) {
             }
     }
 
-    suspend fun getCards(cardSetCode: String): List<CardDto> = withContext(Dispatchers.IO) {
-        getAllCards()
+    suspend fun getCards(cardSetCode: String) = withContextSafe {
+        getAllCards().getOrThrow()
             .distinct()
             .filter { it.cardSetCode == cardSetCode }
     }
 
-    suspend fun getCard(cardCode: String): CardDto = withContext(Dispatchers.IO) {
+    suspend fun getCard(cardCode: String) = withContextSafe {
         httpClient.get("$serviceUrl/api/public/card/$cardCode")
             .body<MarvelCdbCard>()
             .toCardDto()
     }
 
-    suspend fun getSpotlightDecksByDate(date: String): List<DeckDto> = withContext(Dispatchers.IO) {
+    suspend fun getSpotlightDecksByDate(date: String) = withContextSafe {
         httpClient.get("$serviceUrl/api/public/decklists/by_date/${date}.json") {
             headers {
                 append(CacheControl, "no-store")
@@ -124,21 +129,14 @@ class MarvelCDbDataSource(private val serviceUrl: String) {
             .map { it.toDeckDto() }
     }
 
-    suspend fun getCardImage(cardCode: String): Result<ByteArray> = runCatching {
-        try {
-            httpClient.get("$serviceUrl/bundles/cards/${cardCode}.png").bodyAsBytes()
-        } catch (e: Exception) {
-            throw RemoteServiceException(
-                HttpStatusCode.NotFound,
-                "Could not load image for [$cardCode]"
-            )
-        }
+    suspend fun getCardImage(cardCode: String) = withContextSafe() {
+        httpClient.get("$serviceUrl/bundles/cards/${cardCode}.png").bodyAsBytes()
     }
 
-    suspend fun getDeck(deckId: String, authToken: String): DeckDto = withContext(Dispatchers.IO) {
+    suspend fun getDeck(deckId: String, bearerToken: String) = withContextSafe {
         httpClient.get("$serviceUrl/api/oauth2/deck/load/$deckId") {
             headers {
-                append(Authorization, authToken)
+                append(Authorization, bearerToken)
                 append(CacheControl, "no-store")
             }
         }
@@ -146,10 +144,10 @@ class MarvelCDbDataSource(private val serviceUrl: String) {
             .toDeckDto()
     }
 
-    suspend fun getAllUserDecks(authToken: String): List<DeckDto> = withContext(Dispatchers.IO) {
+    suspend fun getAllUserDecks(bearerToken: String) = withContextSafe {
         httpClient.get("$serviceUrl/api/oauth2/decks") {
             headers {
-                append(Authorization, authToken)
+                append(Authorization, bearerToken)
                 append(CacheControl, "no-store")
             }
         }
@@ -157,32 +155,53 @@ class MarvelCDbDataSource(private val serviceUrl: String) {
             .map { it.toDeckDto() }
     }
 
-    suspend fun createDeck(heroCardCode: String, deckName: String?, authToken: String) =
-        withContext(Dispatchers.IO) {
+    suspend fun createDeck(heroCardCode: String, deckName: String?, bearerToken: String) =
+        withContextSafe {
             httpClient.post("$serviceUrl/api/oauth2/deck/new") {
-                headers { append(Authorization, authToken) }
+                headers { append(Authorization, bearerToken) }
                 parameter("investigator", heroCardCode)
                 parameter("name", deckName)
             }
                 .body<MarvelCdbResponse>()
-                .toCreateDeckResponseDto()
+                .msg?.jsonPrimitive?.int ?: throw Exception("Deck creation failed")
         }
 
-    suspend fun updateDeck(deckId: String, slots: String, authToken: String) {
-        withContext(Dispatchers.IO) {
+    suspend fun updateDeck(deckId: String, slots: String, bearerToken: String) =
+        withContextSafe {
             httpClient.put("$serviceUrl/api/oauth2/deck/save/${deckId}") {
-                headers { append(Authorization, authToken) }
+                headers { append(Authorization, bearerToken) }
                 parameter("slots", slots)
             }
+            Unit
         }
+
+    suspend fun deleteDeck(deckId: String, bearerToken: String)=
+        withContextSafe {
+            httpClient.delete("$serviceUrl/api/oauth2/deck/delete/${deckId}") {
+                headers { append(Authorization, bearerToken) }
+            }
+            Unit
+        }
+}
+
+private suspend fun <T> withContextSafe(
+    context: CoroutineContext = Dispatchers.IO,
+    block: suspend CoroutineScope.() -> T
+): Result<T> = withContext(context) {
+    runCatching<T> {
+        block()
     }
 }
 
 class AuthorizationException() :
     RemoteServiceException(HttpStatusCode.Unauthorized, "Token invalid or expired")
 
-open class RemoteServiceException(val statusCode: HttpStatusCode, message: String? = null) :
-    IOException(message)
+open class RemoteServiceException(
+    val statusCode: HttpStatusCode = HttpStatusCode.InternalServerError,
+    message: String? = null,
+) : IOException(message) {
+    val error: String = "Remote Service Error"
+}
 
 @Serializable
 internal data class MarvelCdbResponse(
@@ -194,10 +213,6 @@ internal data class MarvelCdbResponse(
 internal data class MarvelCdbError(
     val code: Int,
     val message: String
-)
-
-private fun MarvelCdbResponse.toCreateDeckResponseDto() = CreateDeckResponseDto(
-    deckId = this.msg?.jsonPrimitive?.int!!,
 )
 
 @Serializable

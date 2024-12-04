@@ -2,11 +2,11 @@ package pro.schacher.mcc.server.plugins.routes
 
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.HttpStatusCode.Companion.BadRequest
-import io.ktor.http.HttpStatusCode.Companion.InternalServerError
 import io.ktor.server.request.receive
 import io.ktor.server.response.respond
 import io.ktor.server.routing.Routing
 import io.ktor.server.routing.RoutingCall
+import io.ktor.server.routing.delete
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import io.ktor.server.routing.put
@@ -27,16 +27,23 @@ fun Routing.decks(marvelCDbDataSource: MarvelCDbDataSource) {
     get("$PREFIX/spotlight") {
         runAndHandleErrors(call) {
             val date = call.getQueryParameterOrThrow("date")
-            val allPacks = marvelCDbDataSource.getSpotlightDecksByDate(date)
+            val allPacks = marvelCDbDataSource.getSpotlightDecksByDate(date).getOrThrow()
             call.respond(allPacks)
+        }
+    }
+
+    get(PREFIX) {
+        runAndHandleErrors(call) {
+            val allDecks = marvelCDbDataSource.getAllUserDecks(call.getBearerToken()).getOrThrow()
+            call.respond(allDecks)
         }
     }
 
     get("$PREFIX/{deckId}") {
         runAndHandleErrors(call) {
-            val deckId = it.getPathParameterOrThrow("deckId")
-            val deck = marvelCDbDataSource.getDeck(deckId, it.getBearerToken())
-            it.respond(deck)
+            val deckId = call.getPathParameterOrThrow("deckId")
+            val deck = marvelCDbDataSource.getDeck(deckId, call.getBearerToken()).getOrThrow()
+            call.respond(deck)
         }
     }
 
@@ -45,17 +52,17 @@ fun Routing.decks(marvelCDbDataSource: MarvelCDbDataSource) {
             val deckId = call.getPathParameterOrThrow("deckId")
             val slots = call.getQueryParameterOrThrow("slots")
 
-            marvelCDbDataSource.updateDeck(deckId, slots, call.getBearerToken())
-            it.respond(HttpStatusCode.OK)
+            marvelCDbDataSource.updateDeck(deckId, slots, call.getBearerToken()).getOrThrow()
+            call.respond(HttpStatusCode.OK)
         }
     }
 
     post(PREFIX) {
         runAndHandleErrors(call) {
-            val requestDto = it.receive(CreateDeckRequestDto::class)
+            val requestDto = call.receive(CreateDeckRequestDto::class)
 
-            val heroCard = marvelCDbDataSource.getCard(requestDto.heroCardCode)
-            val heroCards = marvelCDbDataSource.getCards(heroCard.cardSetCode!!)
+            val heroCard = marvelCDbDataSource.getCard(requestDto.heroCardCode).getOrThrow()
+            val heroCards = marvelCDbDataSource.getCards(heroCard.cardSetCode!!).getOrThrow()
 
             val slots = heroCards
                 .filter { it.deckLimit != null }
@@ -63,34 +70,27 @@ fun Routing.decks(marvelCDbDataSource: MarvelCDbDataSource) {
                 .associate { it.code to it.deckLimit!! }
                 .let { Json.encodeToString(it) }
 
-            val result = runCatching {
-                marvelCDbDataSource.createDeck(
-                    heroCard.code,
-                    requestDto.deckName,
-                    call.getBearerToken()
-                )
-            }
-
-            val deckId = result.getOrNull()?.deckId
-                ?: throw RemoteServiceException(
-                    InternalServerError,
-                    result.exceptionOrNull()?.toString() ?: "Failed to create deck"
-                )
+            val deckId = marvelCDbDataSource.createDeck(
+                heroCard.code,
+                requestDto.deckName,
+                call.getBearerToken()
+            ).getOrThrow()
 
             marvelCDbDataSource.updateDeck(
                 deckId.toString(),
                 slots,
-                it.getBearerToken()
+                call.getBearerToken()
             )
 
-            it.respond(CreateDeckResponseDto(deckId))
+            call.respond(CreateDeckResponseDto(deckId))
         }
     }
 
-    get(PREFIX) {
+    delete("$PREFIX/{deckId}") {
         runAndHandleErrors(call) {
-            val allPacks = marvelCDbDataSource.getAllUserDecks(call.getBearerToken())
-            it.respond(allPacks)
+            val deckId = call.getPathParameterOrThrow("deckId")
+            marvelCDbDataSource.deleteDeck(deckId, call.getBearerToken()).getOrThrow()
+            call.respond(HttpStatusCode.OK)
         }
     }
 }

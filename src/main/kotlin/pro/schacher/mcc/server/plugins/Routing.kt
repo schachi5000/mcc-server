@@ -23,15 +23,15 @@ fun Application.configureRouting(marvelCDbDataSource: MarvelCDbDataSource) {
     }
 }
 
-suspend fun runAndHandleErrors(call: RoutingCall, block: suspend (RoutingCall) -> Unit) {
+suspend fun runAndHandleErrors(call: RoutingCall, block: suspend () -> Unit) {
     try {
-        block(call)
+        block()
     } catch (e: RemoteServiceException) {
-        call.respond(e.statusCode, ErrorResponseDto(e.statusCode, e.message))
+        call.respond(e.statusCode, ErrorResponseDto(e.error, e.message))
     } catch (e: Exception) {
         call.respond(
             InternalServerError,
-            ErrorResponseDto(InternalServerError, e.message)
+            ErrorResponseDto(InternalServerError.description, e.message)
         )
     }
 }

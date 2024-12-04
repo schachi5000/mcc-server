@@ -7,6 +7,7 @@ import io.ktor.server.engine.embeddedServer
 import io.ktor.server.netty.Netty
 import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
 import kotlinx.serialization.json.Json
+import pro.schacher.mcc.server.marvelcdb.DefaultClient
 import pro.schacher.mcc.server.marvelcdb.MarvelCDbDataSource
 import pro.schacher.mcc.server.marvelcdb.UrlProvider
 import pro.schacher.mcc.server.plugins.configureRouting
@@ -29,5 +30,5 @@ fun Application.module() {
             explicitNulls = false
         })
     }
-    configureRouting(MarvelCDbDataSource(UrlProvider()))
+    configureRouting(MarvelCDbDataSource(UrlProvider(), DefaultClient))
 }

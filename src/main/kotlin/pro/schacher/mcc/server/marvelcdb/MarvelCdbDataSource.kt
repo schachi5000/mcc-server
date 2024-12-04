@@ -2,13 +2,6 @@ package pro.schacher.mcc.server.marvelcdb
 
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
-import io.ktor.client.engine.cio.CIO
-import io.ktor.client.plugins.HttpResponseValidator
-import io.ktor.client.plugins.cache.HttpCache
-import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
-import io.ktor.client.plugins.logging.LogLevel
-import io.ktor.client.plugins.logging.Logger
-import io.ktor.client.plugins.logging.Logging
 import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.headers
@@ -19,7 +12,6 @@ import io.ktor.client.statement.bodyAsBytes
 import io.ktor.http.HttpHeaders.Authorization
 import io.ktor.http.HttpHeaders.CacheControl
 import io.ktor.http.HttpStatusCode
-import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -27,7 +19,6 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.withContext
 import kotlinx.io.IOException
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonObject
@@ -38,41 +29,10 @@ import pro.schacher.mcc.server.dto.PackDto
 import java.util.Locale
 import kotlin.coroutines.CoroutineContext
 
-class MarvelCDbDataSource(private val urlProvider: UrlProvider) {
-
-    private val httpClient = HttpClient(CIO) {
-        followRedirects = true
-        install(HttpCache) {}
-        install(ContentNegotiation) {
-            json(Json {
-                ignoreUnknownKeys = true
-                explicitNulls = false
-            })
-        }
-        install(Logging) {
-            logger = object : Logger {
-                override fun log(message: String) {
-                    println(message)
-                }
-            }
-            level = LogLevel.INFO
-        }
-
-        HttpResponseValidator {
-            validateResponse { response ->
-                when (response.status) {
-                    HttpStatusCode.OK -> return@validateResponse
-                    HttpStatusCode.Unauthorized -> throw AuthorizationException()
-                    else -> throw RemoteServiceException(
-                        statusCode = response.status,
-                        message = "Remote service returned status code ${response.status}"
-                    )
-                }
-            }
-        }
-    }
-
-    private val allCardsCache = mutableMapOf<String, List<CardDto>>()
+class MarvelCDbDataSource(
+    private val urlProvider: UrlProvider,
+    private val httpClient : HttpClient
+) {
 
     private val defaultUrl get() = this.urlProvider.getUrl()
 
@@ -92,17 +52,10 @@ class MarvelCDbDataSource(private val urlProvider: UrlProvider) {
     }
 
     suspend fun getCardsInPack(locale: Locale, packCode: String) = withContextSafe {
-        allCardsCache[packCode]?.let {
-            return@withContextSafe it
-        }
-
         val url = urlProvider.getUrl(locale)
         httpClient.get("${url}/api/public/cards/$packCode")
             .body<List<MarvelCdbCard>>()
             .map { it.toCardDto() }
-            .also {
-//                allCardsCache[packCode] = it
-            }
     }
 
     suspend fun getCards(locale: Locale, cardSetCode: String) = withContextSafe {

@@ -111,7 +111,7 @@ class MarvelCDbDataSource(
         withContextSafe {
             httpClient.post("$defaultUrl/api/oauth2/deck/new") {
                 headers { append(Authorization, bearerToken) }
-                parameter("investigator", heroCardCode)
+                parameter("hero", heroCardCode)
                 parameter("name", deckName)
             }
                 .body<MarvelCdbResponse>()

@@ -21,7 +21,7 @@ jobs:
         with:
           distribution: 'corretto'
           java-version: '11'
-      - name: Build
+      - name: Build & run tests
         run: ./gradlew build test
       - name: Test Report
         uses: dorny/test-reporter@v1

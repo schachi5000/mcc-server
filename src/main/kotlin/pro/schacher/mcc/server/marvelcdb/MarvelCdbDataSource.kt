@@ -56,9 +56,7 @@ class MarvelCDbDataSource(
         val url = urlProvider.getUrl(locale)
         httpClient.get("${url}/api/public/cards/$packCode")
             .body<List<MarvelCdbCard>>()
-            .map {
-                it.toCardDto { runBlocking { getLinkedCard(locale, it).getOrNull() } }
-            }
+            .map { it.toCardDto { runBlocking { getLinkedCard(locale, it).getOrNull() } } }
     }
 
     suspend fun getCards(locale: Locale, cardSetCode: String) = withContextSafe {
@@ -309,7 +307,7 @@ private fun MarvelCdbCard.toCardDto(linkedCard: ((String) -> CardDto?)? = null):
     packName = this.pack_name,
     position = this.position,
     quantity = this.quantity,
-    text = this.text,
+    text = this.text?.cleanUp(),
     boostText = this.boost_text,
     attackText = this.attack_text,
     threatFixed = this.threat_fixed,
@@ -319,3 +317,11 @@ private fun MarvelCdbCard.toCardDto(linkedCard: ((String) -> CardDto?)? = null):
     primaryColor = this.meta?.colors?.getOrNull(0),
     secondaryColor = this.meta?.colors?.getOrNull(1),
 )
+
+private fun String.cleanUp(): String =
+    this.replace("[[", "<b>")
+        .replace("]]", "</b>")
+        .replace("<p>", "")
+        .replace("</p>", "\n")
+        .replace("<span class=\"icon-mental\" title=\"Mental\"></span>", "[mental]")
+        .replace("<span class=\"icon-star\" title=\"Star\"></span>", "[star]")

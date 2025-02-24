@@ -1,18 +1,25 @@
 name:
-  Build
+  Build & Test
 
 on:
   push:
     branches-ignore:
       - release
+  schedule:
+    - cron: '0 0 * * 1'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  build:
+  build_and_test:
+    name: Build & Test
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+      checks: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -21,5 +28,13 @@ jobs:
         with:
           distribution: 'corretto'
           java-version: '11'
-      - name: Build
-        run: ./gradlew build
+      - name: Build & run tests
+        run: ./gradlew build test
+      - name: Test Report
+        uses: dorny/test-reporter@v1
+        if: success() || failure()
+        with:
+          name: Test Results
+          path: ./build/test-results/test/*.xml
+          reporter: java-junit
+          only-summary: 'true'

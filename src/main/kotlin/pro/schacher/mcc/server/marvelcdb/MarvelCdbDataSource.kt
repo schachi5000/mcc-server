@@ -16,6 +16,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import kotlinx.io.IOException
 import kotlinx.serialization.Serializable
@@ -31,7 +32,7 @@ import kotlin.coroutines.CoroutineContext
 
 class MarvelCDbDataSource(
     private val urlProvider: UrlProvider,
-    private val httpClient : HttpClient
+    private val httpClient: HttpClient
 ) {
 
     private val defaultUrl get() = this.urlProvider.getUrl()
@@ -55,7 +56,7 @@ class MarvelCDbDataSource(
         val url = urlProvider.getUrl(locale)
         httpClient.get("${url}/api/public/cards/$packCode")
             .body<List<MarvelCdbCard>>()
-            .map { it.toCardDto() }
+            .map { it.toCardDto { runBlocking { getLinkedCard(locale, it).getOrNull() } } }
     }
 
     suspend fun getCards(locale: Locale, cardSetCode: String) = withContextSafe {
@@ -65,6 +66,13 @@ class MarvelCDbDataSource(
     }
 
     suspend fun getCard(locale: Locale, cardCode: String) = withContextSafe {
+        val url = urlProvider.getUrl(locale)
+        httpClient.get("${url}/api/public/card/$cardCode")
+            .body<MarvelCdbCard>()
+            .toCardDto { runBlocking { getLinkedCard(locale, it).getOrNull() } }
+    }
+
+    private suspend fun getLinkedCard(locale: Locale, cardCode: String) = withContextSafe {
         val url = urlProvider.getUrl(locale)
         httpClient.get("${url}/api/public/card/$cardCode")
             .body<MarvelCdbCard>()
@@ -273,7 +281,8 @@ private data class MarvelCdbCard(
     )
 }
 
-private fun MarvelCdbCard.toCardDto(): CardDto = CardDto(
+private fun MarvelCdbCard.toCardDto(linkedCard: ((String) -> CardDto?)? = null):
+        CardDto = CardDto(
     attack = this.attack,
     baseThreatFixed = this.base_threat_fixed,
     cardSetCode = this.card_set_code,
@@ -292,17 +301,13 @@ private fun MarvelCdbCard.toCardDto(): CardDto = CardDto(
     healthPerHero = this.health_per_hero,
     hidden = this.hidden,
     unique = this.is_unique,
-    linkedCard = this.linked_card?.copy(
-        linked_card = null,
-        linked_to_code = null,
-        linked_to_name = null
-    )?.toCardDto(),
+    linkedCard = linked_to_code?.let { linkedCard?.invoke(it) },
     name = this.name,
     packCode = this.pack_code,
     packName = this.pack_name,
     position = this.position,
     quantity = this.quantity,
-    text = this.text,
+    text = this.text?.cleanUp(),
     boostText = this.boost_text,
     attackText = this.attack_text,
     threatFixed = this.threat_fixed,
@@ -312,3 +317,11 @@ private fun MarvelCdbCard.toCardDto(): CardDto = CardDto(
     primaryColor = this.meta?.colors?.getOrNull(0),
     secondaryColor = this.meta?.colors?.getOrNull(1),
 )
+
+private fun String.cleanUp(): String =
+    this.replace("[[", "<b>")
+        .replace("]]", "</b>")
+        .replace("<p>", "")
+        .replace("</p>", "\n")
+        .replace("<span class=\"icon-mental\" title=\"Mental\"></span>", "[mental]")
+        .replace("<span class=\"icon-star\" title=\"Star\"></span>", "[star]")

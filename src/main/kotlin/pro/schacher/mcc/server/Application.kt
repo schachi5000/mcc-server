@@ -6,11 +6,13 @@ import io.ktor.server.application.install
 import io.ktor.server.engine.embeddedServer
 import io.ktor.server.netty.Netty
 import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.server.plugins.ratelimit.RateLimit
 import kotlinx.serialization.json.Json
 import pro.schacher.mcc.server.marvelcdb.DefaultClient
 import pro.schacher.mcc.server.marvelcdb.MarvelCDbDataSource
 import pro.schacher.mcc.server.marvelcdb.UrlProvider
 import pro.schacher.mcc.server.plugins.configureRouting
+import kotlin.time.Duration.Companion.seconds
 
 
 fun main(args: Array<String>) {
@@ -24,6 +26,11 @@ fun main(args: Array<String>) {
 }
 
 fun Application.module() {
+    install(RateLimit){
+        global {
+            rateLimiter(limit = 50, refillPeriod = 60.seconds)
+        }
+    }
     install(ContentNegotiation) {
         json(Json {
             prettyPrint = true

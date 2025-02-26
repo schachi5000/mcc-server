@@ -18,7 +18,6 @@ import pro.schacher.mcc.server.plugins.configureRouting
 import pro.schacher.mcc.server.plugins.routes.cardImageRateLimiter
 import kotlin.time.Duration.Companion.minutes
 
-
 fun main(args: Array<String>) {
     println("Starting Server")
     embeddedServer(
@@ -32,11 +31,13 @@ fun main(args: Array<String>) {
 fun Application.module() {
     install(RateLimit) {
         global {
-            rateLimiter(limit = 100, refillPeriod = 1.minutes)
+            requestKey { call -> call.request.local.remoteAddress }
+            rateLimiter(limit = 120, refillPeriod = 1.minutes)
         }
 
         register(cardImageRateLimiter) {
-            rateLimiter(limit = 50, refillPeriod = 1.minutes)
+            requestKey { call -> call.request.local.remoteAddress }
+            rateLimiter(limit = 60, refillPeriod = 1.minutes)
         }
     }
     install(StatusPages) {

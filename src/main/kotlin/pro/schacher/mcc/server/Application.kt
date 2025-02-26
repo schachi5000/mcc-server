@@ -16,7 +16,7 @@ import pro.schacher.mcc.server.marvelcdb.MarvelCDbDataSource
 import pro.schacher.mcc.server.marvelcdb.UrlProvider
 import pro.schacher.mcc.server.plugins.configureRouting
 import pro.schacher.mcc.server.plugins.routes.cardImageRateLimiter
-import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Duration.Companion.seconds
 
 fun main(args: Array<String>) {
     println("Starting Server")
@@ -31,13 +31,11 @@ fun main(args: Array<String>) {
 fun Application.module() {
     install(RateLimit) {
         global {
-            requestKey { call -> call.request.local.remoteAddress }
-            rateLimiter(limit = 120, refillPeriod = 1.minutes)
+            rateLimiter(limit = 200, refillPeriod = 1.seconds)
         }
 
         register(cardImageRateLimiter) {
-            requestKey { call -> call.request.local.remoteAddress }
-            rateLimiter(limit = 60, refillPeriod = 1.minutes)
+            rateLimiter(limit = 100, refillPeriod = 1.seconds)
         }
     }
     install(StatusPages) {

@@ -1,5 +1,7 @@
 package pro.schacher.mcc.server.plugins.routes
 
+import io.ktor.server.plugins.ratelimit.RateLimitName
+import io.ktor.server.plugins.ratelimit.rateLimit
 import io.ktor.server.response.respond
 import io.ktor.server.routing.Routing
 import io.ktor.server.routing.get
@@ -12,6 +14,8 @@ import kotlin.collections.set
 private val imageCache = mutableMapOf<String, ByteArray>()
 
 private const val PREFIX = "/api/v1/cards"
+
+val cardImageRateLimiter = RateLimitName("card_image")
 
 internal fun Routing.cards(marvelCDbDataSource: MarvelCDbDataSource) {
     get(PREFIX) {
@@ -32,19 +36,21 @@ internal fun Routing.cards(marvelCDbDataSource: MarvelCDbDataSource) {
         }
     }
 
-    get("$PREFIX/{cardCode}/image") {
-        runAndHandleErrors(call) {
-            val cardCode = call.getPathParameterOrThrow("cardCode")
+    rateLimit(cardImageRateLimiter) {
+        get("$PREFIX/{cardCode}/image") {
+            runAndHandleErrors(call) {
+                val cardCode = call.getPathParameterOrThrow("cardCode")
 
-            imageCache[cardCode]?.let {
-                println("Retrieving card image for $cardCode from cache")
-                call.respond(it)
-                return@runAndHandleErrors
+                imageCache[cardCode]?.let {
+                    println("Retrieving card image for $cardCode from cache")
+                    call.respond(it)
+                    return@runAndHandleErrors
+                }
+
+                val image = marvelCDbDataSource.getCardImage(cardCode).getOrThrow()
+                imageCache[cardCode] = image
+                call.respond(image)
             }
-
-            val image = marvelCDbDataSource.getCardImage(cardCode).getOrThrow()
-            imageCache[cardCode] = image
-            call.respond(image)
         }
     }
 }

@@ -1,5 +1,6 @@
 package pro.schacher.mcc.server
 
+import io.ktor.http.HttpStatusCode
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.application.Application
 import io.ktor.server.application.install
@@ -7,6 +8,8 @@ import io.ktor.server.engine.embeddedServer
 import io.ktor.server.netty.Netty
 import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.server.plugins.ratelimit.RateLimit
+import io.ktor.server.plugins.statuspages.StatusPages
+import io.ktor.server.response.respondText
 import kotlinx.serialization.json.Json
 import pro.schacher.mcc.server.marvelcdb.DefaultClient
 import pro.schacher.mcc.server.marvelcdb.MarvelCDbDataSource
@@ -26,9 +29,18 @@ fun main(args: Array<String>) {
 }
 
 fun Application.module() {
-    install(RateLimit){
+    install(RateLimit) {
         global {
             rateLimiter(limit = 50, refillPeriod = 60.seconds)
+        }
+    }
+    install(StatusPages) {
+        status(HttpStatusCode.TooManyRequests) { call, status ->
+            val retryAfter = call.response.headers["Retry-After"]
+            call.respondText(
+                text = "429: Too many requests. Wait for $retryAfter seconds.",
+                status = status
+            )
         }
     }
     install(ContentNegotiation) {

@@ -1,8 +1,10 @@
 package pro.schacher.mcc.server.plugins
 
 import io.ktor.http.HttpStatusCode
+import io.ktor.http.HttpStatusCode.Companion.BadRequest
 import io.ktor.http.HttpStatusCode.Companion.InternalServerError
 import io.ktor.server.application.Application
+import io.ktor.server.plugins.BadRequestException
 import io.ktor.server.response.respond
 import io.ktor.server.routing.RoutingCall
 import io.ktor.server.routing.routing
@@ -29,11 +31,10 @@ suspend fun runAndHandleErrors(call: RoutingCall, block: suspend () -> Unit) {
         block()
     } catch (e: RemoteServiceException) {
         call.respond(e.statusCode, ErrorResponseDto(e.error, e.message))
+    } catch (e: BadRequestException) {
+        call.respond(BadRequest, ErrorResponseDto(BadRequest.description, e.message))
     } catch (e: Exception) {
-        call.respond(
-            InternalServerError,
-            ErrorResponseDto(InternalServerError.description, e.message)
-        )
+        call.respond(InternalServerError, ErrorResponseDto(e.toString(), e.message))
     }
 }
 

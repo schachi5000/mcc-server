@@ -1,10 +1,14 @@
 package pro.schacher.mcc.server.plugins.routes
 
+import io.ktor.server.plugins.BadRequestException
 import io.ktor.server.plugins.ratelimit.RateLimitName
 import io.ktor.server.plugins.ratelimit.rateLimit
+import io.ktor.server.request.receive
 import io.ktor.server.response.respond
 import io.ktor.server.routing.Routing
 import io.ktor.server.routing.get
+import io.ktor.server.routing.post
+import pro.schacher.mcc.server.dto.CardsRequestDto
 import pro.schacher.mcc.server.marvelcdb.MarvelCDbDataSource
 import pro.schacher.mcc.server.plugins.getAcceptLocaleOrDefault
 import pro.schacher.mcc.server.plugins.getPathParameterOrThrow
@@ -22,6 +26,19 @@ internal fun Routing.cards(marvelCDbDataSource: MarvelCDbDataSource) {
         runAndHandleErrors(call) {
             val local = call.getAcceptLocaleOrDefault()
             val cards = marvelCDbDataSource.getAllCards(local).getOrThrow()
+            call.respond(cards)
+        }
+    }
+
+    post(PREFIX) {
+        runAndHandleErrors(call) {
+            val local = call.getAcceptLocaleOrDefault()
+            val cardsRequestDto = call.receive(CardsRequestDto::class)
+            if (cardsRequestDto.cardCodes.isEmpty()) {
+                throw BadRequestException("No card codes provided")
+            }
+
+            val cards = marvelCDbDataSource.getCards(local, cardsRequestDto.cardCodes).getOrThrow()
             call.respond(cards)
         }
     }

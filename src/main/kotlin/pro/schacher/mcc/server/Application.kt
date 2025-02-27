@@ -6,6 +6,9 @@ import io.ktor.server.application.Application
 import io.ktor.server.application.install
 import io.ktor.server.engine.embeddedServer
 import io.ktor.server.netty.Netty
+import io.ktor.server.plugins.compression.Compression
+import io.ktor.server.plugins.compression.deflate
+import io.ktor.server.plugins.compression.gzip
 import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.server.plugins.ratelimit.RateLimit
 import io.ktor.server.plugins.statuspages.StatusPages
@@ -29,6 +32,11 @@ fun main(args: Array<String>) {
 }
 
 fun Application.module() {
+    install(Compression) {
+        gzip()
+        deflate()
+    }
+
     install(RateLimit) {
         global {
             rateLimiter(limit = 200, refillPeriod = 1.seconds)

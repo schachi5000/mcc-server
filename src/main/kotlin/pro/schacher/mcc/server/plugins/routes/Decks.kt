@@ -10,7 +10,6 @@ import io.ktor.server.routing.delete
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import io.ktor.server.routing.put
-import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import pro.schacher.mcc.server.dto.CreateDeckRequestDto
 import pro.schacher.mcc.server.dto.CreateDeckResponseDto
@@ -65,7 +64,7 @@ fun Routing.decks(marvelCDbDataSource: MarvelCDbDataSource) {
 
             val heroCard = marvelCDbDataSource.getCard(locale, requestDto.heroCardCode).getOrThrow()
             val heroCards =
-                marvelCDbDataSource.getCards(locale, heroCard.cardSetCode!!).getOrThrow()
+                marvelCDbDataSource.getCardsInSet(locale, heroCard.cardSetCode!!).getOrThrow()
 
             val slots = heroCards
                 .filter { it.deckLimit != null }

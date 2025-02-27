@@ -59,10 +59,14 @@ class MarvelCDbDataSource(
             .map { it.toCardDto { runBlocking { getLinkedCard(locale, it).getOrNull() } } }
     }
 
-    suspend fun getCards(locale: Locale, cardSetCode: String) = withContextSafe {
+    suspend fun getCardsInSet(locale: Locale, cardSetCode: String) = withContextSafe {
         getAllCards(locale).getOrThrow()
             .distinct()
             .filter { it.cardSetCode == cardSetCode }
+    }
+
+    suspend fun getCards(locale: Locale, cardCodes: List<String>) = withContextSafe {
+        cardCodes.map { getCard(locale, it).getOrThrow() }
     }
 
     suspend fun getCard(locale: Locale, cardCode: String) = withContextSafe {

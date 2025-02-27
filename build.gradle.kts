@@ -4,7 +4,7 @@ val logback_version: String by project
 plugins {
     kotlin("jvm") version "2.0.20"
     kotlin("plugin.serialization").version("2.0.20")
-    id("io.ktor.plugin") version "3.0.0-rc-1"
+    id("io.ktor.plugin") version "3.1.1"
 }
 
 group = "pro.schacher"
@@ -30,8 +30,8 @@ dependencies {
     implementation("io.ktor:ktor-server-content-negotiation")
     implementation("io.ktor:ktor-server-call-logging")
     implementation("io.ktor:ktor-server-rate-limit")
-    implementation("io.ktor:ktor-server-status-pages"
-    )
+    implementation("io.ktor:ktor-server-status-pages")
+
     implementation("io.ktor:ktor-client-core-jvm")
     implementation("io.ktor:ktor-client-cio")
     implementation("io.ktor:ktor-client-content-negotiation")

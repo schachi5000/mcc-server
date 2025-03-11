@@ -30,14 +30,14 @@ import pro.schacher.mcc.server.dto.PackDto
 import java.util.Locale
 import kotlin.coroutines.CoroutineContext
 
-class MarvelCDbDataSource(
+open class MarvelCDbDataSource(
     private val urlProvider: UrlProvider,
     private val httpClient: HttpClient
 ) {
 
     private val defaultUrl get() = this.urlProvider.getUrl()
 
-    suspend fun getAllCards(locale: Locale) = withContextSafe {
+    open suspend fun getAllCards(locale: Locale) = withContextSafe {
         val allPacks = getAllPacks().getOrThrow()
 
         return@withContextSafe allPacks.map {
@@ -52,24 +52,24 @@ class MarvelCDbDataSource(
             .body<List<PackDto>>()
     }
 
-    suspend fun getCardsInPack(locale: Locale, packCode: String) = withContextSafe {
+    open suspend fun getCardsInPack(locale: Locale, packCode: String) = withContextSafe {
         val url = urlProvider.getUrl(locale)
         httpClient.get("${url}/api/public/cards/$packCode")
             .body<List<MarvelCdbCard>>()
             .map { it.toCardDto { runBlocking { getLinkedCard(locale, it).getOrNull() } } }
     }
 
-    suspend fun getCardsInSet(locale: Locale, cardSetCode: String) = withContextSafe {
+    open suspend fun getCardsInSet(locale: Locale, cardSetCode: String) = withContextSafe {
         getAllCards(locale).getOrThrow()
             .distinct()
             .filter { it.cardSetCode == cardSetCode }
     }
 
-    suspend fun getCards(locale: Locale, cardCodes: List<String>) = withContextSafe {
+    open suspend fun getCards(locale: Locale, cardCodes: List<String>) = withContextSafe {
         cardCodes.map { getCard(locale, it).getOrThrow() }
     }
 
-    suspend fun getCard(locale: Locale, cardCode: String) = withContextSafe {
+    open suspend fun getCard(locale: Locale, cardCode: String) = withContextSafe {
         val url = urlProvider.getUrl(locale)
         httpClient.get("${url}/api/public/card/$cardCode")
             .body<MarvelCdbCard>()

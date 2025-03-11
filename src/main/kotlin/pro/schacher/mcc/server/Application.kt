@@ -1,11 +1,14 @@
 package pro.schacher.mcc.server
 
+import io.ktor.http.CacheControl
 import io.ktor.http.HttpStatusCode
+import io.ktor.http.content.CachingOptions
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.application.Application
 import io.ktor.server.application.install
 import io.ktor.server.engine.embeddedServer
 import io.ktor.server.netty.Netty
+import io.ktor.server.plugins.cachingheaders.CachingHeaders
 import io.ktor.server.plugins.compression.Compression
 import io.ktor.server.plugins.compression.deflate
 import io.ktor.server.plugins.compression.gzip
@@ -14,11 +17,12 @@ import io.ktor.server.plugins.ratelimit.RateLimit
 import io.ktor.server.plugins.statuspages.StatusPages
 import io.ktor.server.response.respondText
 import kotlinx.serialization.json.Json
+import pro.schacher.mcc.server.marvelcdb.CardCachingDataSourceWrapper
 import pro.schacher.mcc.server.marvelcdb.DefaultClient
-import pro.schacher.mcc.server.marvelcdb.MarvelCDbDataSource
 import pro.schacher.mcc.server.marvelcdb.UrlProvider
 import pro.schacher.mcc.server.plugins.configureRouting
 import pro.schacher.mcc.server.plugins.routes.cardImageRateLimiter
+import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.seconds
 
 fun main(args: Array<String>) {
@@ -36,7 +40,11 @@ fun Application.module() {
         gzip()
         deflate()
     }
-
+    install(CachingHeaders) {
+        options { _, _ ->
+            CachingOptions(CacheControl.MaxAge(maxAgeSeconds = 12.hours.inWholeSeconds.toInt()))
+        }
+    }
     install(RateLimit) {
         global {
             rateLimiter(limit = 200, refillPeriod = 1.seconds)
@@ -61,5 +69,5 @@ fun Application.module() {
             explicitNulls = false
         })
     }
-    configureRouting(MarvelCDbDataSource(UrlProvider(), DefaultClient))
+    configureRouting(CardCachingDataSourceWrapper(UrlProvider(), DefaultClient))
 }

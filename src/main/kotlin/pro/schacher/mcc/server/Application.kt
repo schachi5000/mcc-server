@@ -17,8 +17,8 @@ import io.ktor.server.plugins.ratelimit.RateLimit
 import io.ktor.server.plugins.statuspages.StatusPages
 import io.ktor.server.response.respondText
 import kotlinx.serialization.json.Json
-import pro.schacher.mcc.server.marvelcdb.CardCachingDataSourceWrapper
 import pro.schacher.mcc.server.marvelcdb.DefaultClient
+import pro.schacher.mcc.server.marvelcdb.MarvelCDbDataSource
 import pro.schacher.mcc.server.marvelcdb.UrlProvider
 import pro.schacher.mcc.server.plugins.configureRouting
 import pro.schacher.mcc.server.plugins.routes.cardImageRateLimiter
@@ -42,7 +42,7 @@ fun Application.module() {
     }
     install(CachingHeaders) {
         options { _, _ ->
-            CachingOptions(CacheControl.MaxAge(maxAgeSeconds = 12.hours.inWholeSeconds.toInt()))
+            CachingOptions(CacheControl.MaxAge(maxAgeSeconds = 6.hours.inWholeSeconds.toInt()))
         }
     }
     install(RateLimit) {
@@ -69,5 +69,5 @@ fun Application.module() {
             explicitNulls = false
         })
     }
-    configureRouting(CardCachingDataSourceWrapper(UrlProvider(), DefaultClient))
+    configureRouting(MarvelCDbDataSource(UrlProvider(), DefaultClient))
 }

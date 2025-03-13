@@ -1,5 +1,6 @@
 package pro.schacher.mcc.server.plugins.routes
 
+import io.ktor.server.plugins.NotFoundException
 import io.ktor.server.response.respond
 import io.ktor.server.routing.Routing
 import io.ktor.server.routing.get
@@ -20,6 +21,21 @@ internal fun Routing.packs(marvelCDbDataSource: MarvelCDbDataSource) {
 
     get("$PREFIX/{packCode?}") {
         runAndHandleErrors(call) {
+            val packCode = call.getPathParameterOrThrow("packCode")
+            val pack = marvelCDbDataSource.getAllPacks().getOrNull()?.find {
+                it.code == packCode
+            }
+
+            if (pack == null) {
+                throw NotFoundException("Pack with code $packCode not found")
+            }
+
+            call.respond(pack)
+        }
+    }
+
+    get("$PREFIX/{packCode?}/cards") {
+        runAndHandleErrors(call) {
             val local = call.getAcceptLocaleOrDefault()
             val packCode = call.getPathParameterOrThrow("packCode")
             val allPacks = marvelCDbDataSource.getCardsInPack(local, packCode).getOrThrow()
@@ -27,4 +43,3 @@ internal fun Routing.packs(marvelCDbDataSource: MarvelCDbDataSource) {
         }
     }
 }
-
